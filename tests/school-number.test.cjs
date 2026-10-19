@@ -27,4 +27,8 @@ assert.match(html, /id="teacher-school"[^>]*type="number"/);
 assert.match(app, /schoolNameForNumber\(schoolNo\)/);
 assert.match(app, /localStorage\.setItem\('math-school-number'/);
 assert.doesNotMatch(html, /학교의 정식 이름을 입력/);
+assert.match(html, /id="legacy-school-panel"/);
+assert.match(html, /id="dashboard-status"[^>]*aria-live="polite"/);
+assert.match(app, /startReportRefresh\(\)/);
+assert.match(app, /getTeacherLookupSchool\(\)/);
 console.log('PASS: numeric school entry, single-digit numbers, legacy labels and unchanged backend contract');
