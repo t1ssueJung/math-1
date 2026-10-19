@@ -68,6 +68,19 @@ function positiveInteger(raw) {
   const n = Number(text);
   return Number.isSafeInteger(n) && n <= 2147483647 ? n : null;
 }
+// The Apps Script backend still stores the field as schoolName. A numeric
+// school code is encoded into that existing field to avoid changing old rows.
+function schoolNameForNumber(number) {
+  return '학교번호 ' + number;
+}
+function schoolNumberLabel(name) {
+  const match = /^학교번호 ([1-9]\d*)$/.exec(String(name || ''));
+  return match ? match[1] + '번 학교' : String(name || '');
+}
+function schoolNumberForCsv(name) {
+  const match = /^학교번호 ([1-9]\d*)$/.exec(String(name || ''));
+  return match ? match[1] : String(name || '');
+}
 function setChoice(group, property, value) {
   state[property] = property === 'term' ? Number(value) : value;
   if(property==='term'){state.unit='1';renderUnits();}
@@ -78,7 +91,7 @@ function setChoice(group, property, value) {
   });
 }
 function openStudent() {
-  try{$('school-name').value=localStorage.getItem('math-school-name')||'';}catch(_){}
+  try{$('school-name').value=localStorage.getItem('math-school-number')||'';}catch(_){}
   $('student-error').textContent = '';
   renderUnits();
   show('student');
@@ -87,8 +100,12 @@ function openStudent() {
 async function startQuiz() {
   const navigation = navigationVersion;
   $('student-error').textContent = '';
-  const schoolName=$('school-name').value.normalize('NFKC').trim().replace(/\s+/g,' ');
-  if(!/^[\p{L}\p{N} .()·-]{2,60}$/u.test(schoolName)){$('student-error').textContent='학교의 정식 이름을 2~60자로 입력해 주세요.';return;}
+  const schoolNo = positiveInteger($('school-name').value);
+  if (!schoolNo) {
+    $('student-error').textContent = '학교 번호를 1 이상의 숫자로 입력해 주세요.';
+    return;
+  }
+  const schoolName = schoolNameForNumber(schoolNo);
   const classNo = positiveInteger($('class-no').value);
   const studentNo = positiveInteger($('student-no').value);
   if (!classNo || !studentNo) {
@@ -101,7 +118,7 @@ async function startQuiz() {
     const result = await api('start', { schoolName, classNo, studentNo, term: state.term, unit: state.unit, mode: state.unit==='all'||selectedUnit()?.arithmetic ? state.mode : 'mix' });
     if (navigation !== navigationVersion) return;
     state.schoolName=result.schoolName||schoolName;
-    try{localStorage.setItem('math-school-name',state.schoolName);}catch(_){}
+    try{localStorage.setItem('math-school-number',String(schoolNo));}catch(_){}
     state.classNo = classNo;
     state.studentNo = studentNo;
     state.attempt = result;
@@ -121,7 +138,7 @@ function showQuestion() {
   window.scrollTo({top:0,behavior:"instant"});
   state.answered = false;
   const q = state.attempt.questions[state.index];
-  $('player-label').textContent = `${state.schoolName} · ${state.classNo}반 ${state.studentNo}번 · ${state.term}학기 ${unitLabel(state.term,state.attempt.unit || state.unit)}`;
+  $('player-label').textContent = `${schoolNumberLabel(state.schoolName)} · ${state.classNo}반 ${state.studentNo}번 · ${state.term}학기 ${unitLabel(state.term,state.attempt.unit || state.unit)}`;
   $('progress-label').textContent = `${state.index + 1} / ${state.attempt.questions.length}`;
   $('progress-fill').style.width = `${(state.index + 1) / state.attempt.questions.length * 100}%`;
   $('quiz-emoji').textContent = '🐱';
@@ -269,7 +286,7 @@ async function nextQuestion() {
   try {
     const result = await api('submit', { attemptId: state.attempt.attemptId, answers: state.answers });
     if (navigation !== navigationVersion) return;
-    $('result-player').textContent = `${state.schoolName} · ${state.classNo}반 ${state.studentNo}번 · ${state.term}학기 ${unitLabel(state.term,state.attempt.unit || state.unit)}`;
+    $('result-player').textContent = `${schoolNumberLabel(state.schoolName)} · ${state.classNo}반 ${state.studentNo}번 · ${state.term}학기 ${unitLabel(state.term,state.attempt.unit || state.unit)}`;
     $('result-score').textContent = `${result.score} / ${result.total}`;
     $('result-first-count').textContent = `${result.firstTryCount ?? (result.score - (result.helpedCount || 0))}개`;
     $('result-hint-count').textContent = `${result.helpedCount || 0}개`;
@@ -291,12 +308,14 @@ async function loginTeacher() {
   $('teacher-error').textContent = '';
   setBusy(btn, true, '확인 중...');
   try {
-    const schoolName=$('teacher-school').value;
+    const schoolNo = positiveInteger($('teacher-school').value);
+    if (!schoolNo) throw new Error('조회할 학교 번호를 1 이상의 숫자로 입력해 주세요.');
+    const schoolName = schoolNameForNumber(schoolNo);
     const { teacherToken,schoolName:school } = await api('teacherLogin', { schoolName,password: $('teacher-password').value });
     if (navigation !== navigationVersion) { api('teacherLogout', {teacherToken}).catch(() => {}); return; }
     state.teacherToken = teacherToken;
-    $('report-school').textContent=school;
-    try{localStorage.setItem('math-school-name',school);}catch(_){}
+    $('report-school').textContent=schoolNumberLabel(school);
+    try{localStorage.setItem('math-school-number',String(schoolNo));}catch(_){}
     $('teacher-password').value = '';
     show('dashboard');
     await refreshReport();
@@ -431,8 +450,8 @@ function csvCell(v) {
 function exportCsv() {
   const rows = filtered();
   if (!rows.length) { alert('내보낼 결과가 없습니다.'); return; }
-  const output = [['학교','반','번호','학기','단원','유형','맞힌문제','전체문제','처음에맞힘','힌트후맞힘','정답공개','제출시각','틀린문제/힌트기록']];
-  rows.forEach((r) => output.push([r.school_name,r.class_no,r.student_no,r.term,recordUnitLabel(r),r.mode,r.score,r.total,r.first_try_count ?? (r.score-(r.helped_count||0)),r.helped_count||0,r.revealed_count||0,dateText(r.completed_at),wrongText(r)]));
+  const output = [['학교번호(이전 기록은 학교명)','반','번호','학기','단원','유형','맞힌문제','전체문제','처음에맞힘','힌트후맞힘','정답공개','제출시각','틀린문제/힌트기록']];
+  rows.forEach((r) => output.push([schoolNumberForCsv(r.school_name),r.class_no,r.student_no,r.term,recordUnitLabel(r),r.mode,r.score,r.total,r.first_try_count ?? (r.score-(r.helped_count||0)),r.helped_count||0,r.revealed_count||0,dateText(r.completed_at),wrongText(r)]));
   const text = '\uFEFF' + output.map((r) => r.map(csvCell).join(',')).join('\r\n');
   const blob = new Blob([text], { type: 'text/csv;charset=utf-8' });
   const url = URL.createObjectURL(blob);
@@ -594,7 +613,7 @@ function drawVisual(q) {
 $('home-logo').addEventListener('click', goHome);
 $('student-entry').addEventListener('click', openStudent);
 $('teacher-school').value='';
-try{$('teacher-school').value=localStorage.getItem('math-school-name')||'';}catch(_){}
+try{$('teacher-school').value=localStorage.getItem('math-school-number')||'';}catch(_){}
 $('teacher-entry').addEventListener('click', () => { $('teacher-error').textContent = ''; show('teacher-login'); });
 document.querySelectorAll('[data-go-home]').forEach((b) => b.addEventListener('click', goHome));
 document.querySelectorAll('[data-term]').forEach((b) => b.addEventListener('click', () => setChoice('[data-term]', 'term', b.dataset.term)));
