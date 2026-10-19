@@ -86,6 +86,20 @@ const defaultReport=call({action:'teacherReport',teacherToken:defaultLogin.teach
 assert.ok(defaultReport.records.length>1);assert.ok(defaultReport.records.every(r=>r.school_name==='대구세천초등학교'));
 assert.ok(JSON.parse(schoolRows).slice(1).every((r,i)=>JSON.stringify(r)===JSON.stringify(sheets.math_attempts.rows[i+1])));
 console.log('PASS: school input validation, school/class identity, legacy school fallback, session-scoped reports, unchanged prior rows');
+// The school number representation used by GitHub Pages must round-trip
+// through the existing Apps Script sheet backend and teacher report.
+const numberedSchool='학교번호 10';
+const numberedStart=call({action:'start',schoolName:numberedSchool,classNo:3,studentNo:12,term:1,unit:'3',mode:'mix'});
+assert.equal(numberedStart.ok,true);
+assert.equal(call({action:'submit',attemptId:numberedStart.attemptId,answers:answerSet(numberedStart.questions)}).ok,true);
+const numberedLogin=call({action:'teacherLogin',schoolName:numberedSchool,password:'test-only'});
+assert.equal(numberedLogin.ok,true);
+const numberedReport=call({action:'teacherReport',teacherToken:numberedLogin.teacherToken});
+assert.equal(numberedReport.ok,true);
+assert.ok(numberedReport.records.some(r=>r.id===numberedStart.attemptId&&r.class_no===3&&r.student_no===12));
+assert.equal(numberedReport.records.some(r=>r.school_name==='다른초등학교'),false);
+console.log('PASS: school number 10 student save appears in matching teacher dashboard');
+
 // Deletion is authenticated, scoped to the session school and reversible.
 const deletionSchool='삭제검증초등학교',otherDeletionSchool='삭제검증다른초등학교';
 function fixtureAttempt(schoolName,studentNo,finish=true){
