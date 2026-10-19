@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#7755e8">
   <meta name="description" content="초등학교 1학년 단원별 수학 퀴즈 - 학생은 반과 번호로 참여, 선생님은 전체 학급 결과 확인">
   <title>반짝반짝 수학 탐험대</title>
-<link rel="stylesheet" href="style.css?v=20261019-credit">
+<link rel="stylesheet" href="style.css?v=20261020-schoolnumber">
 </head>
 <body>
   <main class="shell" id="app">
@@ -22,15 +22,15 @@
         <p class="muted">버튼을 누르고 퀴즈를 시작해요!</p>
       </div>
       <div class="home-grid">
-        <button id="student-entry" class="entry student-entry"><span class="entry-emoji" aria-hidden="true">🎒</span><strong>학생 시작</strong><small>학교·반·번호만 입력해요</small></button>
+        <button id="student-entry" class="entry student-entry"><span class="entry-emoji" aria-hidden="true">🎒</span><strong>학생 시작</strong><small>학교 번호·반·번호만 입력해요</small></button>
         <button id="teacher-entry" class="entry teacher-entry"><span class="entry-emoji" aria-hidden="true">👩‍🏫</span><strong>선생님</strong><small>반별 결과를 확인해요</small></button>
       </div>
       <p class="hint">학생 이름과 구글 계정은 입력하지 않아요.</p>
     </section>
 
     <section id="student" class="screen hidden">
-      <div class="section-heading"><span class="mascot small" aria-hidden="true">🐰</span><h1>우리 학교, 우리 반은?</h1><p class="muted">학교의 정식 이름을 입력해요. 새 학교와 반도 바로 등록돼요!</p></div>
-      <div class="school-field"><label for="school-name">🏫 우리 학교 이름</label><input id="school-name" maxlength="60" type="text" placeholder="예: 대구세천초등학교" autocomplete="organization"><p class="tiny">다른 학교와 구분할 수 있도록 정식 이름을 똑같이 써 주세요.</p></div>
+      <div class="section-heading"><span class="mascot small" aria-hidden="true">🐰</span><h1>우리 학교, 우리 반은?</h1><p class="muted">학교 번호와 반, 내 번호를 입력해요. 새 학교 번호도 자동 등록돼요!</p></div>
+      <div class="school-field"><label for="school-name">🏫 우리 학교 번호</label><input id="school-name" type="number" min="1" step="1" inputmode="numeric" placeholder="예: 10" autocomplete="off"><p class="tiny">선생님이 알려주신 학교 번호를 입력해요. (예: 10)</p></div>
       <div class="form-row">
         <label for="class-no">🏫 우리 반</label>
         <div class="number-unit"><input id="class-no" type="number" min="1" step="1" inputmode="numeric" placeholder="예: 3" autocomplete="off"><span>반</span></div>
@@ -84,8 +84,8 @@
 
     <section id="teacher-login" class="screen hidden centered">
       <div class="mascot" aria-hidden="true">👩‍🏫</div><h1>선생님 결과 확인</h1>
-      <p class="muted">학교 이름과 공통 비밀번호를 입력해 주세요.</p>
-      <label class="password-label" for="teacher-school">조회할 학교 이름</label><input id="teacher-school" class="password-input" type="text" maxlength="60" placeholder="학교의 정식 이름" autocomplete="organization">
+      <p class="muted">학교 번호와 공통 비밀번호를 입력해 주세요.</p>
+      <label class="password-label" for="teacher-school">조회할 학교 번호</label><input id="teacher-school" class="password-input" type="number" min="1" step="1" inputmode="numeric" placeholder="예: 10" autocomplete="off">
       <label class="password-label" for="teacher-password">교사용 비밀번호</label>
       <input id="teacher-password" class="password-input" type="password" autocomplete="off" placeholder="비밀번호">
       <p id="teacher-error" class="error" role="alert"></p>
