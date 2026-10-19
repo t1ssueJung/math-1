@@ -1,0 +1,30 @@
+const fs = require('node:fs');
+const vm = require('node:vm');
+const assert = require('node:assert/strict');
+
+const root = __dirname + '/../';
+const html = fs.readFileSync(root + 'index.html', 'utf8');
+const app = fs.readFileSync(root + 'app.js', 'utf8');
+const backend = fs.readFileSync(root + 'backend/Code.gs', 'utf8');
+
+const begin = app.indexOf('function positiveInteger(');
+const end = app.indexOf('function setChoice(', begin);
+assert.ok(begin > 0 && end > begin, 'school number helpers must exist');
+const context = vm.createContext({ Number, String });
+vm.runInContext(app.slice(begin, end), context);
+assert.equal(vm.runInContext('positiveInteger("10")', context), 10);
+assert.equal(vm.runInContext('positiveInteger("1")', context), 1);
+assert.equal(vm.runInContext('positiveInteger("0")', context), null);
+assert.equal(vm.runInContext('positiveInteger("학교")', context), null);
+assert.equal(vm.runInContext('schoolNameForNumber(10)', context), '학교번호 10');
+assert.equal(vm.runInContext('schoolNameForNumber(1)', context), '학교번호 1');
+assert.equal(vm.runInContext('schoolNumberLabel("학교번호 10")', context), '10번 학교');
+assert.equal(vm.runInContext('schoolNumberForCsv("학교번호 10")', context), '10');
+assert.equal(vm.runInContext('schoolNumberForCsv("대구세천초등학교")', context), '대구세천초등학교');
+assert.match(backend, /\[\\p\{L\}\\p\{N\}/, 'backend must accept the encoded school identifier');
+assert.match(html, /id="school-name"[^>]*type="number"/);
+assert.match(html, /id="teacher-school"[^>]*type="number"/);
+assert.match(app, /schoolNameForNumber\(schoolNo\)/);
+assert.match(app, /localStorage\.setItem\('math-school-number'/);
+assert.doesNotMatch(html, /학교의 정식 이름을 입력/);
+console.log('PASS: numeric school entry, single-digit numbers, legacy labels and unchanged backend contract');
