@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#7755e8">
+  <meta name="description" content="초등학교 1학년 단원별 수학 퀴즈 - 학생은 반과 번호로 참여, 선생님은 전체 학급 결과 확인">
+  <title>반짝반짝 수학 탐험대</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="shell" id="app">
+    <header class="header">
+      <button type="button" id="home-logo" class="brand" aria-label="첫 화면으로 돌아가기"><span aria-hidden="true">🌈</span><span>반짝반짝 수학 탐험대</span></button>
+      <span class="brand-tag">1학년 단원별 수학</span>
+    </header>
+
+    <section id="home" class="screen">
+      <div class="hero"><div class="mascot" aria-hidden="true">🐻✨</div>
+        <p class="eyebrow">즐겁게 배우는 수학 모험</p>
+        <h1>오늘도 수학 별을 모아볼까?</h1>
+        <p class="muted">버튼을 누르고 퀴즈를 시작해요!</p>
+      </div>
+      <div class="home-grid">
+        <button id="student-entry" class="entry student-entry"><span class="entry-emoji" aria-hidden="true">🎒</span><strong>학생 시작</strong><small>학교·반·번호만 입력해요</small></button>
+        <button id="teacher-entry" class="entry teacher-entry"><span class="entry-emoji" aria-hidden="true">👩‍🏫</span><strong>선생님</strong><small>반별 결과를 확인해요</small></button>
+      </div>
+      <p class="hint">학생 이름과 구글 계정은 입력하지 않아요.</p>
+    </section>
+
+    <section id="student" class="screen hidden">
+      <div class="section-heading"><span class="mascot small" aria-hidden="true">🐰</span><h1>우리 학교, 우리 반은?</h1><p class="muted">학교의 정식 이름을 입력해요. 새 학교와 반도 바로 등록돼요!</p></div>
+      <div class="school-field"><label for="school-name">🏫 우리 학교 이름</label><input id="school-name" maxlength="60" type="text" placeholder="예: 대구세천초등학교" autocomplete="organization"><p class="tiny">다른 학교와 구분할 수 있도록 정식 이름을 똑같이 써 주세요.</p></div>
+      <div class="form-row">
+        <label for="class-no">🏫 우리 반</label>
+        <div class="number-unit"><input id="class-no" type="number" min="1" step="1" inputmode="numeric" placeholder="예: 3" autocomplete="off"><span>반</span></div>
+        <label for="student-no">🔢 내 번호</label>
+        <div class="number-unit"><input id="student-no" type="number" min="1" step="1" inputmode="numeric" placeholder="예: 12" autocomplete="off"><span>번</span></div>
+      </div>
+      <fieldset class="choice-field"><legend>📚 어느 학기인가요?</legend>
+        <div class="pills" id="term-buttons"><button class="pill active" type="button" data-term="1" aria-pressed="true">🌷 1학기</button><button class="pill" type="button" data-term="2" aria-pressed="false">🍁 2학기</button></div>
+      </fieldset>
+      <fieldset class="choice-field"><legend>📖 배운 단원을 골라요</legend><div id="unit-buttons" class="unit-grid"></div><p id="unit-note" class="hint"></p></fieldset>
+      <fieldset class="choice-field" id="operation-field">
+        <legend>🎯 무엇을 연습할까요?</legend>
+        <div class="pills" id="mode-buttons"><button class="pill" type="button" data-mode="add" aria-pressed="false">➕ 덧셈</button><button class="pill" type="button" data-mode="sub" aria-pressed="false">➖ 뺄셈</button><button class="pill active" type="button" data-mode="mix" aria-pressed="true">🌟 골고루</button></div>
+      </fieldset>
+      <p id="student-error" class="error" role="alert"></p>
+      <button id="start-quiz" class="primary">🚀 퀴즈 시작!</button>
+      <button class="back-link" type="button" data-go-home>← 처음으로</button>
+    </section>
+
+    <section id="quiz" class="screen hidden">
+      <div class="quiz-top"><strong id="player-label"></strong><strong id="progress-label"></strong></div>
+      <div class="progress-track"><div id="progress-fill" class="progress-fill"></div></div>
+      <div class="question-card"><div id="quiz-emoji" class="mascot" aria-hidden="true">🐱</div><p id="story" class="story"></p><div id="equation" class="equation"></div><div id="visual" class="visual"></div></div>
+      <div id="options" class="answer-grid"></div>
+      <p id="quiz-feedback" class="feedback" role="status" aria-live="polite"></p>
+      <div id="hint-box" class="learning-box hint-box hidden" role="status" aria-live="polite">
+        <strong>💡 다시 생각해 볼 힌트!</strong>
+        <p id="hint-text"></p>
+        <span class="learning-note">틀렸던 숫자는 다시 누르지 않아도 돼요. 다른 답을 골라 보세요!</span>
+      </div>
+      <div id="solution-box" class="learning-box solution-box hidden" role="status" aria-live="polite">
+        <strong>📖 선생님과 함께 정답을 살펴봐요</strong>
+        <p id="solution-text"></p>
+      </div>
+      <p id="quiz-error" class="error" role="alert"></p>
+      <button id="next-question" class="primary hidden">다음 문제 ➡️</button>
+    </section>
+
+    <section id="result" class="screen hidden centered">
+      <div class="mascot" aria-hidden="true">🏆🎉</div><h1>끝까지 도전했어요!</h1><p id="result-player" class="muted"></p>
+      <p class="muted">한 번에 맞히거나 힌트를 보고 맞힌 문제</p>
+      <div id="result-score" class="big-score"></div><div id="result-stars" class="stars" aria-label="획득한 별"></div>
+      <div class="learning-totals">
+        <div>🌟 한 번에 맞힘<strong id="result-first-count">0개</strong></div>
+        <div>💡 힌트 후 맞힘<strong id="result-hint-count">0개</strong></div>
+        <div>📖 정답 확인<strong id="result-reveal-count">0개</strong></div>
+      </div>
+      <h2 id="result-message"></h2><p class="muted">선생님 화면에 결과가 저장되었어요.</p>
+      <button id="retry" class="primary">🔄 다시 도전하기</button><button id="result-home" class="back-link">← 학습 선택으로</button>
+    </section>
+
+    <section id="teacher-login" class="screen hidden centered">
+      <div class="mascot" aria-hidden="true">👩‍🏫</div><h1>선생님 결과 확인</h1>
+      <p class="muted">학교 이름과 공통 비밀번호를 입력해 주세요.</p>
+      <label class="password-label" for="teacher-school">조회할 학교 이름</label><input id="teacher-school" class="password-input" type="text" maxlength="60" placeholder="학교의 정식 이름" autocomplete="organization">
+      <label class="password-label" for="teacher-password">교사용 비밀번호</label>
+      <input id="teacher-password" class="password-input" type="password" autocomplete="off" placeholder="비밀번호">
+      <p id="teacher-error" class="error" role="alert"></p>
+      <button id="login" class="primary">🔐 결과 확인하기</button><button class="back-link" data-go-home>← 처음으로</button>
+    </section>
+
+    <section id="dashboard" class="screen hidden dashboard">
+      <div class="dashboard-header"><div><p class="eyebrow">선생님 전용</p><h1>📊 우리 학교 수학 결과</h1><p id="report-school" class="muted"></p></div><div class="toolbar"><button id="refresh" class="small-btn">🔄 새로고침</button><button id="download-csv" class="small-btn">⬇️ CSV</button><button id="logout" class="small-btn">로그아웃</button></div></div>
+      <div class="filters"><label>학급 <select id="filter-class"><option value="all">전체 반</option></select></label><label>학기 <select id="filter-term"><option value="all">전체 학기</option><option value="1">1학기</option><option value="2">2학기</option></select></label><label>단원 <select id="filter-unit"><option value="all">모든 단원</option></select></label><label>유형 <select id="filter-mode"><option value="all">모든 유형</option><option value="add">덧셈</option><option value="sub">뺄셈</option><option value="mix">골고루</option></select></label></div>
+      <p id="dashboard-status" class="muted" role="status"></p>
+      <div class="stat-grid"><div class="stat"><span>참여 학생</span><strong id="stat-students">-</strong></div><div class="stat"><span>최근 평균 해결률</span><strong id="stat-average">-</strong></div><div class="stat"><span>총 응시</span><strong id="stat-attempts">-</strong></div></div>
+      <h2>🏫 반별 결과</h2><div class="table-scroll"><table><thead><tr><th>반</th><th>참여 학생</th><th>최근 평균 해결률</th><th>총 응시</th></tr></thead><tbody id="class-summary"></tbody></table></div>
+      <h2>⭐ 학생별 최근 결과</h2><p class="tiny">학기·유형 조건에 맞는 학생별 가장 최근 결과입니다.</p><div class="table-scroll"><table><thead><tr><th>반</th><th>번호</th><th>학기</th><th>단원</th><th>유형</th><th>점수</th><th>힌트 후 정답</th><th>정답 공개</th><th>제출 시각</th><th>틀린 문제 / 힌트 기록</th></tr></thead><tbody id="student-summary"></tbody></table></div>
+      <details><summary>📚 모든 제출 기록 펼쳐보기</summary><div class="table-scroll"><table><thead><tr><th>반</th><th>번호</th><th>학기</th><th>단원</th><th>유형</th><th>점수</th><th>힌트 후 정답</th><th>정답 공개</th><th>제출 시각</th><th>틀린 문제 / 힌트 기록</th></tr></thead><tbody id="all-results"></tbody></table></div></details>
+      <p class="tiny">반과 번호는 실제 학생을 식별할 수 있습니다. 이 화면과 내보낸 CSV 파일을 외부에 공유하지 마세요.</p>
+    </section>
+  </main>
+  <footer class="footer">2022 개정 교육과정을 참고한 초등 1학년 단원별 연습</footer>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
+

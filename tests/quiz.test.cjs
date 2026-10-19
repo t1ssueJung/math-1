@@ -1,0 +1,129 @@
+const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict'),crypto=require('crypto');
+const {JSDOM}=require('jsdom');
+const root=__dirname+'/../backend/';
+class Sheet {
+ constructor(){this.rows=[];}
+ getLastRow(){return this.rows.length;}
+ appendRow(r){this.rows.push([...r]);}
+ setFrozenRows(){}
+ deleteRow(r){this.rows.splice(r-1,1);}
+ getRange(r,c,n,m){return {getValues:()=>Array.from({length:n},(_,i)=>Array.from({length:m},(_,j)=>this.rows[r+i-1]?.[c+j-1]??'')),setValues:v=>{v.forEach((row,i)=>{this.rows[r+i-1]??=[]; row.forEach((x,j)=>this.rows[r+i-1][c+j-1]=x);});}};}
+}
+const sheets={},props={TEACHER_PASSWORD:'test-only'},book={getId:()=> 'local-test',getSheetByName:n=>sheets[n],insertSheet:n=>sheets[n]=new Sheet()};
+const context=vm.createContext({console,Date,Math,JSON,Number,String,Array,Set,Error,
+ PropertiesService:{getScriptProperties:()=>({getProperty:k=>props[k],setProperty:(k,v)=>props[k]=v})},
+ SpreadsheetApp:{getActiveSpreadsheet:()=>book,openById:()=>book,flush:()=>{}},
+ LockService:{getScriptLock:()=>({waitLock(){},tryLock:()=>true,releaseLock(){}})},
+ Utilities:{getUuid:()=>crypto.randomUUID(),DigestAlgorithm:{SHA_256:'sha256'},Charset:{UTF_8:'utf8'},computeDigest:(_,s)=>[...crypto.createHash('sha256').update(s).digest()]}
+});
+vm.runInContext(fs.readFileSync(root+'Code.gs','utf8'),context);
+context.setup();context.setup();
+const call=p=>JSON.parse(context.quizApi(typeof p === "string" ? p : JSON.stringify(p)));
+const right=q=>q.answer!==undefined?q.answer:q.operator==='+'?q.a+q.b+(q.c??0):q.a-q.b-(q.c??0);
+const answerSet=qs=>qs.map((q,i)=>{const a=right(q),b=q.choices.filter(x=>x!==a);return {first:i%3===0?a:b[0],second:i%3===0?null:i%3===1?a:b[1]};});
+assert.equal(call({action:'teacherReport'}).ok,false);
+assert.equal(call({action:'teacherLogin',password:'bad'}).ok,false);
+for(const term of [1,2])for(const mode of ['add','sub','mix']){
+ const start=call({action:'start',classNo:term,studentNo:1,term,mode});assert.equal(start.ok,true);assert.equal(start.questions.length,10);
+ start.questions.forEach(q=>{assert.equal(new Set(q.choices).size,4);assert.ok(q.choices.includes(right(q)));});
+ const done=call({action:'submit',attemptId:start.attemptId,answers:answerSet(start.questions),score:999});
+ assert.deepEqual([done.score,done.firstTryCount,done.helpedCount,done.revealedCount],[7,4,3,3]);
+ assert.equal(call({action:'submit',attemptId:start.attemptId,answers:[]}).score,7);
+}
+const before=JSON.stringify(sheets.math_attempts.rows);context.setup();assert.equal(JSON.stringify(sheets.math_attempts.rows),before);
+const login=call({action:'teacherLogin',password:'test-only'});
+assert.equal(call({action:'teacherReport',teacherToken:login.teacherToken}).records.length,6);
+assert.ok(!JSON.stringify(sheets.math_teacher_sessions.rows).includes(login.teacherToken));
+call({action:'teacherLogout',teacherToken:login.teacherToken});assert.equal(call({action:'teacherReport',teacherToken:login.teacherToken}).ok,false);
+console.log('PASS: six modes, server grading, retry, sheet preservation, authentication, reports and logout');
+for(const term of [1,2])for(let unit=1;unit<=(term===1?5:6);unit++)for(const mode of ['add','sub','mix'])for(let repeat=0;repeat<30;repeat++){
+ const qs=context.generateQuestions_(term,mode,String(unit));
+ assert.equal(qs.length,10);
+ for(const q of qs){
+  assert.equal(q.unit,String(unit));assert.equal(new Set(q.choices).size,4);assert.ok(q.choices.includes(right(q)));
+  if(q.type==='flatCount'){const shape={ネモ:'square'};const label=q.expression.split('는')[0];const target={'네모':'square','세모':'triangle','동그라미':'circle'}[label];assert.equal(q.answer,q.visual.shapes.filter(s=>s===target).length);}
+  if(q.type==='numberGrid')assert.equal(q.answer,q.visual.start+Math.floor(q.visual.missing/5)*10+q.visual.missing%5);
+  if(q.type==='parity')assert.equal(q.answer%2,q.expression.startsWith('짝수')?0:1);
+  if(q.type==='clock')assert.equal(q.answer,`${q.visual.hour}시${q.visual.minute?' 30분':''}`);
+  if(q.operator){
+   if(mode!=='mix')assert.equal(q.operator,mode==='add'?'+':'-');
+   if(term===1)assert.ok(right(q)>=0&&right(q)<=9);
+   if(term===2&&unit===6){assert.equal(q.c,null);if(q.operator==='+')assert.ok(q.a%10+q.b%10<10&&right(q)<100);else assert.ok(q.a%10>=q.b%10&&right(q)>=0);}
+   if(term===2&&unit===2){assert.ok(right(q)>=0&&right(q)<=19);assert.ok(['threeAdd','threeSub','tenAdd','tenSub'].includes(q.type));if(q.c!==null&&right(q)>10)assert.ok(q.a+q.b===10||q.b+q.c===10);}
+   if(term===2&&unit===4){if(q.operator==='+')assert.ok(q.a<10&&q.b<10&&right(q)>10);else assert.ok(q.a>10&&right(q)<10&&right(q)>=0);}
+  }else{assert.ok(q.hint&&q.solution);assert.ok(!['carryAdd','borrowSub','noCarryAdd','noBorrowSub','threeAdd','threeSub'].includes(q.type));}
+ }
+ const g=context.grade_(qs,answerSet(qs));assert.deepEqual([g.score,g.firstTryCount,g.helpedCount,g.revealedCount],[7,4,3,3]);
+}
+assert.equal(call({action:'start',classNo:1,studentNo:1,term:1,mode:'mix',unit:'6'}).ok,false);
+assert.equal(context.oldScope_({term:2,unit:'2',questions:'[{"a":32,"b":15}]'}),true);
+assert.equal(context.oldScope_({term:2,unit:'2',questions:JSON.stringify(context.generateQuestions_(2,'mix','2'))}),false);
+assert.equal(context.oldScope_({term:1,unit:'3',questions:'[]'}),false);
+for(const unit of ['2','4','6']){
+ const types=new Set(context.generateQuestions_(2,'mix',unit).map(q=>q.type));
+ if(unit==='2')for(const type of ['threeAdd','threeSub','tenAdd','tenSub'])assert.ok(types.has(type));
+ if(unit==='4')assert.deepEqual([...types].sort(),['borrowSub','carryAdd']);
+ if(unit==='6')assert.deepEqual([...types].sort(),['noBorrowSub','noCarryAdd']);
+}
+const originalRows=JSON.stringify(sheets.math_attempts.rows.slice(1));
+sheets.math_attempts.rows[0].pop();context.setup();assert.equal(sheets.math_attempts.rows[0].at(-1),'school_name');assert.equal(JSON.stringify(sheets.math_attempts.rows.slice(1)),originalRows);
+console.log('PASS: 11 units × 3 modes × 30 quizzes (9,900 questions), boundaries, shape counts, clocks and additive schema upgrade');
+
+// Separate two schools with the exact same class and student numbers.
+const schoolRows=JSON.stringify(sheets.math_attempts.rows);
+assert.equal(call({action:'start',schoolName:'',classNo:1,studentNo:1,term:1,mode:'mix'}).ok,false);
+assert.equal(call({action:'start',schoolName:'=IMPORTXML()',classNo:1,studentNo:1,term:1,mode:'mix'}).ok,false);
+for(const schoolName of ['대구세천초등학교','다른초등학교']){
+ const start=call({action:'start',schoolName,classNo:80,studentNo:1,term:2,unit:'4',mode:'mix'});assert.ok(start.ok);
+ assert.ok(call({action:'submit',attemptId:start.attemptId,answers:answerSet(start.questions)}).ok);
+}
+const schoolLogin=call({action:'teacherLogin',schoolName:'다른초등학교',password:'test-only'});
+const schoolReport=call({action:'teacherReport',schoolName:'대구세천초등학교',teacherToken:schoolLogin.teacherToken});
+assert.equal(schoolReport.schoolName,'다른초등학교');assert.equal(schoolReport.records.length,1);
+assert.equal(schoolReport.records[0].school_name,'다른초등학교');assert.deepEqual(Array.from(schoolReport.classes),[80]);
+const defaultLogin=call({action:'teacherLogin',schoolName:'대구 세천 초등학교',password:'test-only'});
+const defaultReport=call({action:'teacherReport',teacherToken:defaultLogin.teacherToken});
+assert.ok(defaultReport.records.length>1);assert.ok(defaultReport.records.every(r=>r.school_name==='대구세천초등학교'));
+assert.ok(JSON.parse(schoolRows).slice(1).every((r,i)=>JSON.stringify(r)===JSON.stringify(sheets.math_attempts.rows[i+1])));
+console.log('PASS: school input validation, school/class identity, legacy school fallback, session-scoped reports, unchanged prior rows');
+(async()=>{
+ const html=fs.readFileSync(root+'Index.html','utf8');
+ const dom=new JSDOM(html,{runScripts:'dangerously',beforeParse(w){w.scrollTo=()=>{};w.google={script:{run:{withSuccessHandler(fn){const runner={withFailureHandler(){return runner;},quizApi(p){Promise.resolve().then(()=>fn(JSON.parse(JSON.stringify(call(p)))));}};return runner;}}}};}});
+ const w=dom.window,$=id=>w.document.getElementById(id);
+ $('school-name').value='대구세천초등학교';$('teacher-school').value='대구세천초등학교';
+ $('class-no').value='7';$('student-no').value='12';w.eval("state.unit='3'");await w.startQuiz();
+ for(let i=0;i<10;i++){
+  const q=w.eval('state.attempt.questions[state.index]'),r=right(q),wrong=q.choices.filter(x=>x!==r);
+  if(i%3===0)w.answer(r);else {w.answer(wrong[0]);assert.equal($('hint-box').classList.contains('hidden'),false);w.answer(i%3===1?r:wrong[1]);if(i%3===2)assert.equal($('solution-box').classList.contains('hidden'),false);}
+  await w.nextQuestion();
+ }
+ assert.equal($('result-score').textContent,'7 / 10');
+ $('teacher-password').value='test-only';await w.loginTeacher();assert.equal($('dashboard').classList.contains('hidden'),false);
+ $('filter-class').value='7';w.renderReport();assert.equal($('stat-average').textContent,'70%');
+ let blob;w.URL.createObjectURL=b=>(blob=b,'blob:test');w.URL.revokeObjectURL=()=>{};w.HTMLAnchorElement.prototype.click=()=>{};w.exportCsv();assert.ok(blob.size>100);
+ const reader=new w.FileReader();const csv=await new Promise(resolve=>{reader.onload=()=>resolve(reader.result);reader.readAsText(blob);});assert.match(csv,/단원/);assert.match(csv,/3\. 덧셈과 뺄셈/);
+ // Completed old-scope rows remain visible under their own filter, never the corrected unit filter.
+ w.eval("state.records.push({id:'old-scope-fixture',class_no:7,student_no:12,term:2,unit:'2',mode:'mix',score:7,total:10,first_try_count:4,helped_count:3,revealed_count:3,wrong:[],completed_at:new Date().toISOString(),oldScope:true})");
+ $('filter-unit').value='old-scope';w.renderReport();assert.ok($('all-results').textContent.includes('수정 전 범위'));
+ $('filter-unit').value='2/2';w.renderReport();assert.ok(!$('all-results').textContent.includes('수정 전 범위'));
+ $('home-logo').click();assert.equal($('home').classList.contains('hidden'),false);assert.equal($('all-results').children.length,0);
+ // A delayed server response must not pull the pupil away from the home screen.
+ let complete;w.google.script.run.withSuccessHandler=fn=>({withFailureHandler(){return this;},quizApi(p){complete=()=>fn(JSON.parse(JSON.stringify(call(p))));}});
+ const pending=w.startQuiz();$('home-logo').click();complete();await pending;assert.equal($('home').classList.contains('hidden'),false);
+ // All eleven unit screens must handle numeric and word answers, SVGs, hints, explanations and saving.
+ for(const term of [1,2])for(let unit=1;unit<=(term===1?5:6);unit++){
+  w.setChoice('[data-term]','term',String(term));
+  assert.equal(w.eval('state.unit'),'1');w.eval(`state.unit='${unit}'`);w.renderUnits();
+  $('class-no').value=String(9100+term*10+unit);$('student-no').value='1';
+  w.google.script.run.withSuccessHandler=fn=>({withFailureHandler(){return this;},quizApi(p){Promise.resolve().then(()=>fn(context.quizApi(p)));}});
+  await w.startQuiz();
+  for(let i=0;i<10;i++){
+   const q=w.eval('state.attempt.questions[state.index]'),r=right(q),wrong=q.choices.filter(x=>x!==r);
+   if(i%3===0)w.answer(r);else{w.answer(wrong[0]);assert.equal($('hint-box').classList.contains('hidden'),false);assert.ok($('hint-text').textContent);w.answer(i%3===1?r:wrong[1]);if(i%3===2){assert.ok($('solution-text').textContent);assert.ok(!$('solution-text').textContent.includes('undefined'));}}
+   await w.nextQuestion();
+  }
+  assert.equal($('result-score').textContent,'7 / 10');assert.ok($('result-player').textContent.includes(unit+'.'));
+ }
+ dom.window.close();console.log('PASS: actual HTML for all 11 units, word answers, visuals, hints, solutions, saving, teacher statistics, CSV, logo and delayed navigation');
+})().catch(e=>{console.error(e);process.exitCode=1;});
+
