@@ -57,6 +57,37 @@ async function api(action,payload={}){
 }
 
 let navigationVersion = 0;
+// 교사 화면을 열어 둔 상태에서도 새 제출 기록을 자동으로 불러옵니다.
+let reportRefreshTimer = null;
+let reportLoading = false;
+function stopReportRefresh() {
+  if (reportRefreshTimer !== null) {
+    clearInterval(reportRefreshTimer);
+    reportRefreshTimer = null;
+  }
+}
+function startReportRefresh() {
+  stopReportRefresh();
+  reportRefreshTimer = setInterval(() => {
+    if (!state.teacherToken || $('dashboard').classList.contains('hidden')) {
+      stopReportRefresh();
+      return;
+    }
+    if (document.visibilityState !== 'hidden' && !reportLoading) refreshReport();
+  }, 30000);
+}
+function getTeacherLookupSchool() {
+  // 예전 학교 이름으로 저장한 기록을 교사가 별도로 조회할 수 있게 합니다.
+  if ($('legacy-school-panel').open) {
+    const name = $('teacher-legacy-school').value.normalize('NFKC').trim().replace(/\s+/g,' ');
+    if (!/^[\p{L}\p{N} .()·-]{2,60}$/u.test(name))
+      throw new Error('이전 학교의 정식 이름을 입력해 주세요.');
+    return { schoolName: name, schoolNo: null };
+  }
+  const schoolNo = positiveInteger($('teacher-school').value);
+  if (!schoolNo) throw new Error('조회할 학교 번호를 1 이상의 숫자로 입력해 주세요.');
+  return { schoolName: schoolNameForNumber(schoolNo), schoolNo };
+}
 function goHome() {
   navigationVersion++;
   $('teacher-password').value = '';
@@ -308,22 +339,24 @@ async function loginTeacher() {
   $('teacher-error').textContent = '';
   setBusy(btn, true, '확인 중...');
   try {
-    const schoolNo = positiveInteger($('teacher-school').value);
-    if (!schoolNo) throw new Error('조회할 학교 번호를 1 이상의 숫자로 입력해 주세요.');
-    const schoolName = schoolNameForNumber(schoolNo);
+    const { schoolName, schoolNo } = getTeacherLookupSchool();
     const { teacherToken,schoolName:school } = await api('teacherLogin', { schoolName,password: $('teacher-password').value });
     if (navigation !== navigationVersion) { api('teacherLogout', {teacherToken}).catch(() => {}); return; }
     state.teacherToken = teacherToken;
     $('report-school').textContent=schoolNumberLabel(school);
-    try{localStorage.setItem('math-school-number',String(schoolNo));}catch(_){}
+    if (schoolNo !== null) {
+      try{localStorage.setItem('math-school-number',String(schoolNo));}catch(_){}
+    }
     $('teacher-password').value = '';
     show('dashboard');
     await refreshReport();
+    startReportRefresh();
   } catch (e) { $('teacher-error').textContent = message(e); }
   finally { setBusy(btn, false, '🔐 결과 확인하기'); }
 }
 async function refreshReport() {
-  if (!state.teacherToken) return;
+  if (!state.teacherToken || reportLoading) return;
+  reportLoading = true;
   const token = state.teacherToken;
   $('dashboard-status').textContent = '⏳ 전체 기록을 불러오고 있어요...';
   $('refresh').disabled = true;
@@ -347,10 +380,12 @@ async function refreshReport() {
     rebuildClassFilter();
     rebuildUnitFilter();
     renderReport();
-    $('dashboard-status').textContent = `✅ 총 ${records.length}건의 제출 기록을 불러왔어요.`;
+    $('dashboard-status').textContent = records.length
+      ? `✅ 총 ${records.length}건의 제출 기록을 불러왔어요. (30초마다 자동 갱신)`
+      : `아직 완료된 퀴즈가 없습니다. 학생이 10문제를 모두 풀고 '결과 저장'을 마쳤는지 확인해 주세요. 학교 번호도 학생과 교사가 같아야 합니다. (30초마다 자동 갱신)`;
   } catch (e) {
     $('dashboard-status').textContent = `불러오기 오류: ${message(e)}`;
-  } finally { $('refresh').disabled = false; }
+  } finally { reportLoading = false; $('refresh').disabled = false; }
 }
 function rebuildClassFilter() {
   const sel = $('filter-class');
@@ -460,6 +495,7 @@ function exportCsv() {
   setTimeout(() => URL.revokeObjectURL(url), 10000);
 }
 async function logoutTeacher() {
+  stopReportRefresh();
   const token = state.teacherToken;
   closeDeleteDialog();$('trash-results').replaceChildren();$('trash-status').textContent='';$('record-status').textContent='';$('trash-panel').open=false;
   state.teacherToken = null; state.records = []; state.classes = [];
@@ -615,6 +651,10 @@ $('student-entry').addEventListener('click', openStudent);
 $('teacher-school').value='';
 try{$('teacher-school').value=localStorage.getItem('math-school-number')||'';}catch(_){}
 $('teacher-entry').addEventListener('click', () => { $('teacher-error').textContent = ''; show('teacher-login'); });
+$('legacy-school-panel').addEventListener('toggle', () => {
+  $('teacher-school').disabled = $('legacy-school-panel').open;
+  $('teacher-legacy-school').disabled = !$('legacy-school-panel').open;
+});
 document.querySelectorAll('[data-go-home]').forEach((b) => b.addEventListener('click', goHome));
 document.querySelectorAll('[data-term]').forEach((b) => b.addEventListener('click', () => setChoice('[data-term]', 'term', b.dataset.term)));
 document.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => setChoice('[data-mode]', 'mode', b.dataset.mode)));
