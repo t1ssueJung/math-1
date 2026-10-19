@@ -66,7 +66,7 @@ for(const unit of ['2','4','6']){
  if(unit==='6')assert.deepEqual([...types].sort(),['noBorrowSub','noCarryAdd']);
 }
 const originalRows=JSON.stringify(sheets.math_attempts.rows.slice(1));
-sheets.math_attempts.rows[0].pop();context.setup();assert.equal(sheets.math_attempts.rows[0].at(-1),'school_name');assert.equal(JSON.stringify(sheets.math_attempts.rows.slice(1)),originalRows);
+sheets.math_attempts.rows[0].pop();context.setup();assert.equal(sheets.math_attempts.rows[0].at(-1),'delete_batch');assert.equal(JSON.stringify(sheets.math_attempts.rows.slice(1)),originalRows);
 console.log('PASS: 11 units × 3 modes × 30 quizzes (9,900 questions), boundaries, shape counts, clocks and additive schema upgrade');
 
 // Separate two schools with the exact same class and student numbers.
@@ -86,6 +86,40 @@ const defaultReport=call({action:'teacherReport',teacherToken:defaultLogin.teach
 assert.ok(defaultReport.records.length>1);assert.ok(defaultReport.records.every(r=>r.school_name==='대구세천초등학교'));
 assert.ok(JSON.parse(schoolRows).slice(1).every((r,i)=>JSON.stringify(r)===JSON.stringify(sheets.math_attempts.rows[i+1])));
 console.log('PASS: school input validation, school/class identity, legacy school fallback, session-scoped reports, unchanged prior rows');
+// Deletion is authenticated, scoped to the session school and reversible.
+const deletionSchool='삭제검증초등학교',otherDeletionSchool='삭제검증다른초등학교';
+function fixtureAttempt(schoolName,studentNo,finish=true){
+ const q=call({action:'start',schoolName,classNo:71,studentNo,term:2,unit:'4',mode:'mix'});assert.ok(q.ok);
+ if(finish)assert.ok(call({action:'submit',attemptId:q.attemptId,answers:answerSet(q.questions)}).ok);return q;
+}
+const d1=fixtureAttempt(deletionSchool,5),d2=fixtureAttempt(deletionSchool,5),d3=fixtureAttempt(deletionSchool,5,false);
+const keepStudent=fixtureAttempt(deletionSchool,6),keepSchool=fixtureAttempt(otherDeletionSchool,5);
+const deleteLogin=call({action:'teacherLogin',schoolName:deletionSchool,password:'test-only'}),otherDeleteLogin=call({action:'teacherLogin',schoolName:otherDeletionSchool,password:'test-only'});
+const deleteToken=deleteLogin.teacherToken;
+for(const action of ['teacherDeletePreview','teacherDelete','teacherTrash','teacherRestore'])assert.equal(call({action}).ok,false);
+assert.equal(call({action:'teacherDeletePreview',teacherToken:deleteToken,scope:'record',attemptId:keepSchool.attemptId}).ok,false);
+assert.equal(call({action:'teacherDeletePreview',teacherToken:deleteToken,scope:'student',classNo:71,studentNo:0}).ok,false);
+const recordPreview=call({action:'teacherDeletePreview',teacherToken:deleteToken,scope:'record',attemptId:d1.attemptId});assert.equal(recordPreview.count,1);
+const originalD1=JSON.stringify(sheets.math_attempts.rows.find(r=>r[0]===d1.attemptId).slice(0,-2));
+const firstDeleted=call({action:'teacherDelete',teacherToken:deleteToken,scope:'record',attemptId:d1.attemptId,previewHash:recordPreview.previewHash});assert.equal(firstDeleted.deletedCount,1);
+assert.equal(JSON.stringify(sheets.math_attempts.rows.find(r=>r[0]===d1.attemptId).slice(0,-2)),originalD1);
+assert.equal(call({action:'teacherReport',teacherToken:deleteToken}).records.length,2);
+assert.equal(call({action:'teacherTrash',teacherToken:deleteToken}).batches[0].count,1);
+assert.equal(call({action:'teacherRestore',teacherToken:otherDeleteLogin.teacherToken,batchId:firstDeleted.batchId}).ok,false);
+const selector={scope:'student',classNo:71,studentNo:5};
+const beforeRace=call({action:'teacherDeletePreview',teacherToken:deleteToken,...selector});assert.equal(beforeRace.count,2);assert.equal(beforeRace.inProgressCount,1);
+const duringPreview=fixtureAttempt(deletionSchool,5,false);
+assert.equal(call({action:'teacherDelete',teacherToken:deleteToken,...selector,previewHash:beforeRace.previewHash}).ok,false);
+const confirmed=call({action:'teacherDeletePreview',teacherToken:deleteToken,...selector});assert.equal(confirmed.count,3);
+const deleted=call({action:'teacherDelete',teacherToken:deleteToken,...selector,previewHash:confirmed.previewHash});assert.equal(deleted.deletedCount,3);
+assert.equal(call({action:'teacherReport',teacherToken:deleteToken}).records.length,1);
+assert.equal(call({action:'teacherReport',teacherToken:otherDeleteLogin.teacherToken}).records.length,1);
+assert.equal(call({action:'submit',attemptId:d3.attemptId,answers:answerSet(d3.questions)}).ok,false);
+assert.equal(call({action:'teacherRestore',teacherToken:deleteToken,batchId:deleted.batchId}).restoredCount,3);
+assert.equal(call({action:'teacherRestore',teacherToken:deleteToken,batchId:deleted.batchId}).ok,false);
+assert.equal(call({action:'teacherRestore',teacherToken:deleteToken,batchId:firstDeleted.batchId}).restoredCount,1);
+assert.equal(call({action:'teacherReport',teacherToken:deleteToken}).records.length,3);
+console.log('PASS: single/all-student deletion, auth and cross-school checks, exact confirmation counts, concurrent updates, retained raw rows, late-submit rejection and restore');
 (async()=>{
  const html=fs.readFileSync(root+'Index.html','utf8');
  const dom=new JSDOM(html,{runScripts:'dangerously',beforeParse(w){w.scrollTo=()=>{};w.google={script:{run:{withSuccessHandler(fn){const runner={withFailureHandler(){return runner;},quizApi(p){Promise.resolve().then(()=>fn(JSON.parse(JSON.stringify(call(p)))));}};return runner;}}}};}});
@@ -102,6 +136,14 @@ console.log('PASS: school input validation, school/class identity, legacy school
  $('filter-class').value='7';w.renderReport();assert.equal($('stat-average').textContent,'70%');
  let blob;w.URL.createObjectURL=b=>(blob=b,'blob:test');w.URL.revokeObjectURL=()=>{};w.HTMLAnchorElement.prototype.click=()=>{};w.exportCsv();assert.ok(blob.size>100);
  const reader=new w.FileReader();const csv=await new Promise(resolve=>{reader.onload=()=>resolve(reader.result);reader.readAsText(blob);});assert.match(csv,/단원/);assert.match(csv,/3\. 덧셈과 뺄셈/);
+ // The dialog confirms all terms/units, cancel preserves rows and restore repairs statistics/CSV.
+ assert.equal($('student-summary').querySelector('.danger-btn').textContent,'이 학생 기록 삭제');
+ const uiSelector={scope:'student',classNo:7,studentNo:12};
+ await w.openDelete(uiSelector);assert.ok($('delete-dialog').hasAttribute('open'));assert.ok($('delete-summary').textContent.includes('7반 12번'));
+ w.closeDeleteDialog();assert.equal(call({action:'teacherReport',teacherToken:w.eval('state.teacherToken')}).records.some(r=>r.class_no===7),true);
+ await w.openDelete(uiSelector);await w.confirmDelete();assert.equal($('stat-attempts').textContent,'0회');assert.ok(!$('delete-dialog').hasAttribute('open'));
+ const trash=call({action:'teacherTrash',teacherToken:w.eval('state.teacherToken')});const batch=trash.batches.find(b=>b.classNo===7&&b.studentNo===12);assert.ok(batch);
+ await w.restoreRecords(batch.batchId,$('trash-results').querySelector('button'));assert.equal($('stat-attempts').textContent,'1회');assert.equal($('stat-average').textContent,'70%');
  // Completed old-scope rows remain visible under their own filter, never the corrected unit filter.
  w.eval("state.records.push({id:'old-scope-fixture',class_no:7,student_no:12,term:2,unit:'2',mode:'mix',score:7,total:10,first_try_count:4,helped_count:3,revealed_count:3,wrong:[],completed_at:new Date().toISOString(),oldScope:true})");
  $('filter-unit').value='old-scope';w.renderReport();assert.ok($('all-results').textContent.includes('수정 전 범위'));

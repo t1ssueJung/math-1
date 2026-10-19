@@ -2,7 +2,7 @@
 // 비밀번호는 프로젝트 설정 → 스크립트 속성의 TEACHER_PASSWORD에만 입력합니다.
 const TABLES_ = {
   math_classes: ['class_no','created_at','school_name'],
-  math_attempts: ['id','class_no','student_no','term','mode','questions','answers','score','total','first_try_count','helped_count','revealed_count','wrong','created_at','completed_at','unit','school_name'],
+  math_attempts: ['id','class_no','student_no','term','mode','questions','answers','score','total','first_try_count','helped_count','revealed_count','wrong','created_at','completed_at','unit','school_name','deleted_at','delete_batch'],
   math_teacher_sessions: ['token_hash','expires_at','school_name']
 };
 const LEGACY_SCHOOL_='대구세천초등학교';
@@ -109,6 +109,7 @@ function quizApi_(p) {
         const sheet=sheet_(book,'math_attempts');
         const r=rows_(sheet,'math_attempts').find(r=>r.id===p.attemptId);
         if (!r) throw new Error('응시 기록을 찾을 수 없어요.');
+        if(r.deleted_at)throw new Error('선생님이 삭제한 응시 기록입니다. 처음 화면에서 다시 시작해 주세요.');
         if (r.completed_at) {result=summary_(r);break;}
         const g=grade_(JSON.parse(r.questions),p.answers);
         Object.assign(r,{answers:JSON.stringify(p.answers),score:g.score,first_try_count:g.firstTryCount,helped_count:g.helpedCount,revealed_count:g.revealedCount,wrong:JSON.stringify(g.wrong),completed_at:new Date().toISOString()});
@@ -126,6 +127,10 @@ function quizApi_(p) {
         write_(sheet,'math_teacher_sessions',{school_name:school,token_hash:hash_(token),expires_at:new Date(Date.now()+8*3600000).toISOString()});
         result={teacherToken:token,schoolName:school};break;
       }
+      case 'teacherDeletePreview':
+      case 'teacherDelete':
+      case 'teacherTrash':
+      case 'teacherRestore':
       case 'teacherReport':
       case 'teacherLogout': {
         if(typeof p.teacherToken!=='string'||p.teacherToken.length!==72) throw new Error('선생님 비밀번호로 다시 로그인해 주세요.');
@@ -134,13 +139,43 @@ function quizApi_(p) {
         if(!session) throw new Error('로그인 시간이 지났어요. 다시 로그인해 주세요.');
         const school=session.school_name||legacySchool_();
         if(p.action==='teacherLogout') {sheet.deleteRow(session._row);break;}
+        const attemptSheet=sheet_(book,'math_attempts');
+        const schoolRows=rows_(attemptSheet,'math_attempts').filter(r=>schoolKey_(r.school_name||legacySchool_())===schoolKey_(school));
+        if(p.action==='teacherDeletePreview'||p.action==='teacherDelete'){
+          const targets=deleteTargets_(schoolRows,p);
+          const previewHash=hash_(JSON.stringify(targets.map(r=>[r.id,r.completed_at||'']).sort((a,b)=>String(a[0]).localeCompare(String(b[0])))));
+          const completed=targets.filter(r=>r.completed_at).length;
+          if(p.action==='teacherDeletePreview'){
+            result={schoolName:school,classNo:Number(targets[0].class_no),studentNo:Number(targets[0].student_no),count:targets.length,completedCount:completed,inProgressCount:targets.length-completed,previewHash};break;
+          }
+          if(typeof p.previewHash!=='string'||p.previewHash!==previewHash)throw new Error('기록이 바뀌었습니다. 다시 삭제할 내용을 확인해 주세요.');
+          const batch=Utilities.getUuid(),now=new Date().toISOString();
+          targets.forEach(r=>attemptSheet.getRange(r._row,TABLES_.math_attempts.indexOf('deleted_at')+1,1,2).setValues([[now,batch]]));
+          result={deletedCount:targets.length,batchId:batch};break;
+        }
+        if(p.action==='teacherTrash'){
+          const groups=new Map();
+          schoolRows.filter(r=>r.deleted_at&&r.delete_batch).forEach(r=>{
+            let group=groups.get(r.delete_batch);
+            if(!group){group={batchId:String(r.delete_batch),schoolName:school,classNo:Number(r.class_no),studentNo:Number(r.student_no),count:0,deletedAt:String(r.deleted_at)};groups.set(r.delete_batch,group);}
+            group.count++;
+          });
+          result={batches:[...groups.values()].sort((a,b)=>b.deletedAt.localeCompare(a.deletedAt)||a.batchId.localeCompare(b.batchId))};break;
+        }
+        if(p.action==='teacherRestore'){
+          if(typeof p.batchId!=='string'||!/^[0-9a-f-]{36}$/i.test(p.batchId))throw new Error('복구할 기록을 확인해 주세요.');
+          const targets=schoolRows.filter(r=>r.deleted_at&&r.delete_batch===p.batchId);
+          if(!targets.length)throw new Error('이미 복구되었거나 복구할 기록을 찾을 수 없습니다.');
+          targets.forEach(r=>attemptSheet.getRange(r._row,TABLES_.math_attempts.indexOf('deleted_at')+1,1,2).setValues([['','']]));
+          result={restoredCount:targets.length};break;
+        }
         const offset=p.offset===undefined?0:p.offset;
         if(!Number.isSafeInteger(offset)||offset<0) throw new Error('조회 위치를 확인해 주세요.');
         // 응시 시작 행의 상한을 고정해 조회 도중 새 응시가 끼어들지 않게 합니다.
         const attempts=sheet_(book,'math_attempts');
         const snapshot=p.snapshot || {lastRow:attempts.getLastRow(),at:new Date().toISOString()};
         if(!Number.isInteger(snapshot.lastRow)||snapshot.lastRow<1||!Number.isFinite(Date.parse(snapshot.at))) throw new Error('조회 기준을 확인해 주세요.');
-        const all=rows_(attempts,'math_attempts').filter(r=>schoolKey_(r.school_name||legacySchool_())===schoolKey_(school)&&r._row<=snapshot.lastRow&&r.completed_at&&String(r.completed_at)<=snapshot.at)
+        const all=rows_(attempts,'math_attempts').filter(r=>schoolKey_(r.school_name||legacySchool_())===schoolKey_(school)&&!r.deleted_at&&r._row<=snapshot.lastRow&&r.completed_at&&String(r.completed_at)<=snapshot.at)
           .sort((a,b)=>String(b.completed_at).localeCompare(String(a.completed_at))||String(b.id).localeCompare(String(a.id)));
         const records=all.slice(offset,offset+500).map(r=>({id:r.id,school_name:r.school_name||legacySchool_(),class_no:Number(r.class_no),student_no:Number(r.student_no),term:Number(r.term),mode:r.mode,unit:r.unit||'legacy',oldScope:oldScope_(r),score:Number(r.score),total:Number(r.total),first_try_count:Number(r.first_try_count),helped_count:Number(r.helped_count),revealed_count:Number(r.revealed_count),wrong:JSON.parse(r.wrong||'[]'),completed_at:String(r.completed_at)}));
         result={schoolName:school,records,classes:[...new Set(rows_(sheet_(book,'math_classes'),'math_classes').filter(r=>schoolKey_(r.school_name||legacySchool_())===schoolKey_(school)).map(r=>Number(r.class_no)))].sort((a,b)=>a-b),nextOffset:offset+500<all.length?offset+500:null,snapshot}; break;
@@ -415,4 +450,18 @@ function bridgeOutput_(p){
   })();`;
   return HtmlService.createHtmlOutput('<!doctype html><html lang="ko"><head><meta charset="utf-8"></head><body><script>'+script+'</script></body></html>')
     .setTitle('수학 학습 기록 연결').setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+// Targets are derived from the authenticated school, never a browser-supplied school name.
+function deleteTargets_(schoolRows,p){
+  let targets;
+  if(p.scope==='record'){
+    if(typeof p.attemptId!=='string'||!/^[0-9a-f-]{36}$/i.test(p.attemptId))throw new Error('삭제할 응시 기록을 확인해 주세요.');
+    targets=schoolRows.filter(r=>!r.deleted_at&&r.id===p.attemptId);
+  }else if(p.scope==='student'){
+    if(!positive_(p.classNo)||!positive_(p.studentNo))throw new Error('삭제할 학생의 반과 번호를 확인해 주세요.');
+    targets=schoolRows.filter(r=>!r.deleted_at&&Number(r.class_no)===p.classNo&&Number(r.student_no)===p.studentNo);
+  }else throw new Error('삭제할 범위를 확인해 주세요.');
+  if(!targets.length)throw new Error('삭제할 기록이 없습니다. 새로고침 후 확인해 주세요.');
+  return targets;
 }

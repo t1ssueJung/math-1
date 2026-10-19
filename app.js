@@ -390,12 +390,18 @@ function tableRow(container, values, colspan = 1) {
 function studentTable(id, records) {
   const body = $(id);
   body.replaceChildren();
-  if (!records.length) return tableRow(body, ['해당하는 제출 기록이 없어요.'], 10);
-  records.forEach((r) => tableRow(body, [
-    `${r.class_no}반`, `${r.student_no}번`, `${r.term}학기`, recordUnitLabel(r),
+  if (!records.length) return tableRow(body, ['해당하는 제출 기록이 없어요.'], 11);
+  records.forEach((r) => {tableRow(body, [
+    '',`${r.class_no}반`, `${r.student_no}번`, `${r.term}학기`, recordUnitLabel(r),
     { add: '덧셈', sub: '뺄셈', mix: '골고루' }[r.mode] || r.mode,
     `${r.score}/${r.total}`, `${r.helped_count || 0}`, `${r.revealed_count || 0}`, dateText(r.completed_at), wrongText(r)
-  ]));
+  ]);
+    const button=document.createElement('button');button.type='button';button.className='danger-btn';
+    button.textContent=id==='student-summary'?'이 학생 기록 삭제':'이 기록 삭제';
+    button.setAttribute('aria-label',`${r.class_no}반 ${r.student_no}번 ${button.textContent}`);
+    button.addEventListener('click',()=>openDelete(id==='student-summary'?{scope:'student',classNo:r.class_no,studentNo:r.student_no}:{scope:'record',attemptId:r.id}));
+    body.lastElementChild.firstElementChild.append(button);
+  });
 }
 function renderReport() {
   const rows = filtered();
@@ -436,11 +442,83 @@ function exportCsv() {
 }
 async function logoutTeacher() {
   const token = state.teacherToken;
+  closeDeleteDialog();$('trash-results').replaceChildren();$('trash-status').textContent='';$('record-status').textContent='';$('trash-panel').open=false;
   state.teacherToken = null; state.records = []; state.classes = [];
   ['student-summary', 'all-results', 'class-summary'].forEach((id) => $(id).replaceChildren());
   show('home');
   if (token) { try { await api('teacherLogout', { teacherToken: token }); } catch (_) { /* UI logged out */ } }
 }
+
+let pendingDeletion=null,recordMutation=false;
+function closeDeleteDialog(){
+  const dialog=$('delete-dialog');
+  if(dialog.open&&typeof dialog.close==='function')dialog.close();else dialog.removeAttribute('open');
+  pendingDeletion=null;
+}
+async function openDelete(selector){
+  if(recordMutation||!state.teacherToken)return;
+  const token=state.teacherToken;
+  $('record-status').textContent='삭제할 기록을 확인하고 있어요…';
+  try{
+    const preview=await api('teacherDeletePreview',{teacherToken:token,...selector});
+    if(state.teacherToken!==token)return;
+    pendingDeletion={token,selector,previewHash:preview.previewHash};
+    $('delete-summary').textContent=`${preview.schoolName} / ${preview.classNo}반 ${preview.studentNo}번\n${preview.count}건 (완료 ${preview.completedCount}건 · 진행 중 ${preview.inProgressCount}건)`;
+    $('delete-scope').textContent=selector.scope==='student'?'이 학생의 모든 학기·단원 기록을 삭제합니다. 현재 화면의 필터와 관계없이 적용됩니다.':'선택한 응시 기록 1건을 삭제합니다.';
+    $('delete-error').textContent='';$('confirm-delete').disabled=false;$('cancel-delete').disabled=false;
+    $('record-status').textContent='';
+    const dialog=$('delete-dialog');
+    if(typeof dialog.showModal==='function')dialog.showModal();else dialog.setAttribute('open','');
+    $('cancel-delete').focus();
+  }catch(e){if(state.teacherToken===token)$('record-status').textContent=message(e);}
+}
+async function confirmDelete(){
+  if(!pendingDeletion||recordMutation)return;
+  const request=pendingDeletion,token=request.token;
+  if(state.teacherToken!==token){closeDeleteDialog();return;}
+  recordMutation=true;$('confirm-delete').disabled=true;$('cancel-delete').disabled=true;
+  try{
+    const data=await api('teacherDelete',{teacherToken:token,...request.selector,previewHash:request.previewHash});
+    if(state.teacherToken!==token)return;
+    closeDeleteDialog();await refreshReport();await refreshTrash();
+    if(state.teacherToken===token)$('record-status').textContent=`${data.deletedCount}건을 삭제했습니다. 실수했다면 휴지통에서 복구할 수 있습니다.`;
+  }catch(e){if(state.teacherToken===token)$('delete-error').textContent=message(e);}
+  finally{recordMutation=false;$('confirm-delete').disabled=false;$('cancel-delete').disabled=false;}
+}
+async function refreshTrash(){
+  if(!state.teacherToken)return;
+  const token=state.teacherToken;$('trash-status').textContent='휴지통을 불러오고 있어요…';
+  try{
+    const data=await api('teacherTrash',{teacherToken:token});
+    if(state.teacherToken!==token)return;
+    const host=$('trash-results');host.replaceChildren();
+    if(!data.batches.length)tableRow(host,['삭제한 기록이 없습니다.'],5);
+    for(const batch of data.batches){
+      tableRow(host,[`${batch.classNo}반`,`${batch.studentNo}번`,`${batch.count}건`,dateText(batch.deletedAt),'']);
+      const button=document.createElement('button');button.type='button';button.className='small-btn';button.textContent='복구';
+      button.setAttribute('aria-label',`${batch.classNo}반 ${batch.studentNo}번 ${batch.count}건 복구`);
+      button.addEventListener('click',()=>restoreRecords(batch.batchId,button));host.lastElementChild.lastElementChild.append(button);
+    }
+    $('trash-status').textContent=`삭제한 기록 묶음 ${data.batches.length}개`;
+  }catch(e){if(state.teacherToken===token)$('trash-status').textContent=message(e);}
+}
+async function restoreRecords(batchId,button){
+  if(recordMutation||!state.teacherToken)return;
+  const token=state.teacherToken;recordMutation=true;button.disabled=true;
+  try{
+    const data=await api('teacherRestore',{teacherToken:token,batchId});
+    if(state.teacherToken!==token)return;
+    await refreshReport();await refreshTrash();
+    if(state.teacherToken===token)$('record-status').textContent=`${data.restoredCount}건을 복구했습니다.`;
+  }catch(e){if(state.teacherToken===token)$('record-status').textContent=message(e);}
+  finally{recordMutation=false;button.disabled=false;}
+}
+$('confirm-delete').addEventListener('click',confirmDelete);
+$('cancel-delete').addEventListener('click',closeDeleteDialog);
+$('delete-dialog').addEventListener('cancel',event=>{if(recordMutation)event.preventDefault();else pendingDeletion=null;});
+$('delete-dialog').addEventListener('close',()=>{pendingDeletion=null;});
+$('refresh-trash').addEventListener('click',refreshTrash);
+$('trash-panel').addEventListener('toggle',()=>{if($('trash-panel').open)refreshTrash();});
 
 const UNIT_CATALOG = {"1":[{"id":"1","name":"1. 9까지의 수","detail":"9까지 세기 · 수의 순서 · 크기"},{"id":"2","name":"2. 여러 가지 모양","detail":"상자 모양 · 둥근기둥 모양 · 공 모양"},{"id":"3","name":"3. 덧셈과 뺄셈","detail":"한 자리 수 · 합이 9 이하인 계산","arithmetic":true},{"id":"4","name":"4. 비교하기","detail":"길이 · 높이 · 넓이 · 양 · 무게"},{"id":"5","name":"5. 50까지의 수","detail":"50까지의 수 · 10개씩 묶음 · 순서"}],"2":[{"id":"1","name":"1. 100까지의 수","detail":"60~99 · 수의 순서와 크기 · 짝수와 홀수"},{"id":"2","name":"2. 덧셈과 뺄셈(1)","detail":"세 수 계산 · 10이 되는 더하기 · 10에서 빼기 · 10 만들어 더하기","arithmetic":true},{"id":"3","name":"3. 모양과 시각","detail":"네모 · 세모 · 동그라미 · 몇 시 · 몇 시 30분"},{"id":"4","name":"4. 덧셈과 뺄셈(2)","detail":"한 자리 수끼리 받아올림 덧셈 · 십몇에서 받아내림 뺄셈","arithmetic":true},{"id":"5","name":"5. 규칙 찾기","detail":"모양 반복 · 수의 규칙"},{"id":"6","name":"6. 덧셈과 뺄셈(3)","detail":"받아올림·받아내림 없는 두 자리 수 덧셈과 뺄셈","arithmetic":true}]};
 function unitLabel(term,unit) {

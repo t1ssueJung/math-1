@@ -26,7 +26,9 @@ button,input,select{font:inherit}button{cursor:pointer;touch-action:manipulation
 
 .brand{border:0;background:transparent;padding:8px 0;text-align:left;cursor:pointer}
 .unit-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.unit-button{padding:16px 12px;border:3px solid #e4dcfa;border-radius:18px;background:#fcfaff;color:#5d4c87;text-align:left;min-height:90px}.unit-button strong{display:block;font-size:19px}.unit-button small{display:block;font-size:13px;margin-top:7px;line-height:1.5}.unit-button.active{border-color:#7757e6;background:#eae2ff}.visual svg{display:block;width:100%;max-width:420px;max-height:270px;margin:14px auto}.bundle-grid{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}.ten-bundle{white-space:pre;line-height:1.4;font-size:18px;padding:5px 7px;border:2px solid #a799cd;border-radius:8px;color:#6a54b5;background:#f3efff}.answer{font-size:clamp(18px,4.5vw,32px);overflow-wrap:anywhere}.quiz-top{gap:12px}.quiz-top>span:first-child{font-size:14px;max-width:80%}.filters{grid-template-columns:repeat(4,1fr)}@media(max-width:620px){.unit-grid,.filters{grid-template-columns:1fr}.unit-button{min-height:75px}.equation{font-size:clamp(26px,6vw,42px)}}
-.school-field{margin:24px 0}.school-field label{display:block;font-size:22px;font-weight:800;margin-bottom:12px}.school-field input{box-sizing:border-box;width:100%;font:inherit;font-size:24px;padding:16px;border:3px solid #e4dcfa;border-radius:18px;background:#fcfaff}.password-input{box-sizing:border-box;max-width:100%} .quiz-top>strong:first-child{font-size:15px;overflow-wrap:anywhere} </style>
+.school-field{margin:24px 0}.school-field label{display:block;font-size:22px;font-weight:800;margin-bottom:12px}.school-field input{box-sizing:border-box;width:100%;font:inherit;font-size:24px;padding:16px;border:3px solid #e4dcfa;border-radius:18px;background:#fcfaff}.password-input{box-sizing:border-box;max-width:100%} .quiz-top>strong:first-child{font-size:15px;overflow-wrap:anywhere}
+.danger-btn{font:inherit;font-weight:700;color:#a53043;background:#fff0f2;border:2px solid #ebbbc3;border-radius:12px;padding:10px 14px;cursor:pointer}.danger-btn:disabled{opacity:.5;cursor:wait}dialog{border:2px solid #d9cdee;border-radius:22px;padding:26px;max-width:560px;width:calc(100% - 32px);box-sizing:border-box;color:#383154}dialog::backdrop{background:#21153488}.delete-summary{white-space:pre-line;font-size:20px;font-weight:800;overflow-wrap:anywhere}.dialog-buttons{display:flex;justify-content:flex-end;gap:14px;flex-wrap:wrap}#trash-panel{margin:28px 0;padding:18px;background:#faf7ff;border-radius:16px}#trash-panel summary{cursor:pointer;font-size:19px;font-weight:700}
+</style>
 </head>
 <body>
   <main class="shell" id="app">
@@ -115,11 +117,15 @@ button,input,select{font:inherit}button{cursor:pointer;touch-action:manipulation
     <section id="dashboard" class="screen hidden dashboard">
       <div class="dashboard-header"><div><p class="eyebrow">선생님 전용</p><h1>📊 우리 학교 수학 결과</h1><p id="report-school" class="muted"></p></div><div class="toolbar"><button id="refresh" class="small-btn">🔄 새로고침</button><button id="download-csv" class="small-btn">⬇️ CSV</button><button id="logout" class="small-btn">로그아웃</button></div></div>
       <div class="filters"><label>학급 <select id="filter-class"><option value="all">전체 반</option></select></label><label>학기 <select id="filter-term"><option value="all">전체 학기</option><option value="1">1학기</option><option value="2">2학기</option></select></label><label>단원 <select id="filter-unit"><option value="all">모든 단원</option></select></label><label>유형 <select id="filter-mode"><option value="all">모든 유형</option><option value="add">덧셈</option><option value="sub">뺄셈</option><option value="mix">골고루</option></select></label></div>
+      <p class="tiny">「이 학생 기록 삭제」는 모든 학기·단원에 적용됩니다. 「모든 제출 기록」에서는 한 건씩 삭제할 수 있습니다.</p>
       <p id="dashboard-status" class="muted" role="status"></p>
       <div class="stat-grid"><div class="stat"><span>참여 학생</span><strong id="stat-students">-</strong></div><div class="stat"><span>최근 평균 해결률</span><strong id="stat-average">-</strong></div><div class="stat"><span>총 응시</span><strong id="stat-attempts">-</strong></div></div>
       <h2>🏫 반별 결과</h2><div class="table-scroll"><table><thead><tr><th>반</th><th>참여 학생</th><th>최근 평균 해결률</th><th>총 응시</th></tr></thead><tbody id="class-summary"></tbody></table></div>
-      <h2>⭐ 학생별 최근 결과</h2><p class="tiny">학기·유형 조건에 맞는 학생별 가장 최근 결과입니다.</p><div class="table-scroll"><table><thead><tr><th>반</th><th>번호</th><th>학기</th><th>단원</th><th>유형</th><th>점수</th><th>힌트 후 정답</th><th>정답 공개</th><th>제출 시각</th><th>틀린 문제 / 힌트 기록</th></tr></thead><tbody id="student-summary"></tbody></table></div>
-      <details><summary>📚 모든 제출 기록 펼쳐보기</summary><div class="table-scroll"><table><thead><tr><th>반</th><th>번호</th><th>학기</th><th>단원</th><th>유형</th><th>점수</th><th>힌트 후 정답</th><th>정답 공개</th><th>제출 시각</th><th>틀린 문제 / 힌트 기록</th></tr></thead><tbody id="all-results"></tbody></table></div></details>
+      <h2>⭐ 학생별 최근 결과</h2><p class="tiny">학기·유형 조건에 맞는 학생별 가장 최근 결과입니다.</p><div class="table-scroll"><table><thead><tr><th>기록 관리</th><th>반</th><th>번호</th><th>학기</th><th>단원</th><th>유형</th><th>점수</th><th>힌트 후 정답</th><th>정답 공개</th><th>제출 시각</th><th>틀린 문제 / 힌트 기록</th></tr></thead><tbody id="student-summary"></tbody></table></div>
+      <details><summary>📚 모든 제출 기록 펼쳐보기</summary><div class="table-scroll"><table><thead><tr><th>기록 관리</th><th>반</th><th>번호</th><th>학기</th><th>단원</th><th>유형</th><th>점수</th><th>힌트 후 정답</th><th>정답 공개</th><th>제출 시각</th><th>틀린 문제 / 힌트 기록</th></tr></thead><tbody id="all-results"></tbody></table></div></details>
+      <details id="trash-panel"><summary>🗑️ 휴지통 — 삭제한 기록 복구</summary><p class="tiny">삭제한 기록은 통계와 CSV에서 제외됩니다. 복구하면 다시 표시됩니다.</p><button id="refresh-trash" class="small-btn" type="button">휴지통 새로고침</button><p id="trash-status" role="status"></p><div class="table-scroll"><table><thead><tr><th>반</th><th>번호</th><th>기록 수</th><th>삭제 시각</th><th>복구</th></tr></thead><tbody id="trash-results"></tbody></table></div></details>
+      <p id="record-status" class="muted" role="status" aria-live="polite"></p>
+      <dialog id="delete-dialog" aria-labelledby="delete-title"><h2 id="delete-title">학생 기록을 삭제할까요?</h2><p id="delete-summary" class="delete-summary"></p><p id="delete-scope"></p><p>삭제한 기록은 통계와 CSV에서 제외되며, 휴지통에서 복구할 수 있습니다.</p><p id="delete-error" class="error" role="alert"></p><div class="dialog-buttons"><button id="cancel-delete" type="button" class="small-btn" autofocus>취소</button><button id="confirm-delete" type="button" class="danger-btn">확인한 기록 삭제</button></div></dialog>
       <p class="tiny">반과 번호는 실제 학생을 식별할 수 있습니다. 이 화면과 내보낸 CSV 파일을 외부에 공유하지 마세요.</p>
     </section>
   </main>
@@ -489,12 +495,18 @@ function tableRow(container, values, colspan = 1) {
 function studentTable(id, records) {
   const body = $(id);
   body.replaceChildren();
-  if (!records.length) return tableRow(body, ['해당하는 제출 기록이 없어요.'], 10);
-  records.forEach((r) => tableRow(body, [
-    `${r.class_no}반`, `${r.student_no}번`, `${r.term}학기`, recordUnitLabel(r),
+  if (!records.length) return tableRow(body, ['해당하는 제출 기록이 없어요.'], 11);
+  records.forEach((r) => {tableRow(body, [
+    '',`${r.class_no}반`, `${r.student_no}번`, `${r.term}학기`, recordUnitLabel(r),
     { add: '덧셈', sub: '뺄셈', mix: '골고루' }[r.mode] || r.mode,
     `${r.score}/${r.total}`, `${r.helped_count || 0}`, `${r.revealed_count || 0}`, dateText(r.completed_at), wrongText(r)
-  ]));
+  ]);
+    const button=document.createElement('button');button.type='button';button.className='danger-btn';
+    button.textContent=id==='student-summary'?'이 학생 기록 삭제':'이 기록 삭제';
+    button.setAttribute('aria-label',`${r.class_no}반 ${r.student_no}번 ${button.textContent}`);
+    button.addEventListener('click',()=>openDelete(id==='student-summary'?{scope:'student',classNo:r.class_no,studentNo:r.student_no}:{scope:'record',attemptId:r.id}));
+    body.lastElementChild.firstElementChild.append(button);
+  });
 }
 function renderReport() {
   const rows = filtered();
@@ -535,11 +547,83 @@ function exportCsv() {
 }
 async function logoutTeacher() {
   const token = state.teacherToken;
+  closeDeleteDialog();$('trash-results').replaceChildren();$('trash-status').textContent='';$('record-status').textContent='';$('trash-panel').open=false;
   state.teacherToken = null; state.records = []; state.classes = [];
   ['student-summary', 'all-results', 'class-summary'].forEach((id) => $(id).replaceChildren());
   show('home');
   if (token) { try { await api('teacherLogout', { teacherToken: token }); } catch (_) { /* UI logged out */ } }
 }
+
+let pendingDeletion=null,recordMutation=false;
+function closeDeleteDialog(){
+  const dialog=$('delete-dialog');
+  if(dialog.open&&typeof dialog.close==='function')dialog.close();else dialog.removeAttribute('open');
+  pendingDeletion=null;
+}
+async function openDelete(selector){
+  if(recordMutation||!state.teacherToken)return;
+  const token=state.teacherToken;
+  $('record-status').textContent='삭제할 기록을 확인하고 있어요…';
+  try{
+    const preview=await api('teacherDeletePreview',{teacherToken:token,...selector});
+    if(state.teacherToken!==token)return;
+    pendingDeletion={token,selector,previewHash:preview.previewHash};
+    $('delete-summary').textContent=`${preview.schoolName} / ${preview.classNo}반 ${preview.studentNo}번\n${preview.count}건 (완료 ${preview.completedCount}건 · 진행 중 ${preview.inProgressCount}건)`;
+    $('delete-scope').textContent=selector.scope==='student'?'이 학생의 모든 학기·단원 기록을 삭제합니다. 현재 화면의 필터와 관계없이 적용됩니다.':'선택한 응시 기록 1건을 삭제합니다.';
+    $('delete-error').textContent='';$('confirm-delete').disabled=false;$('cancel-delete').disabled=false;
+    $('record-status').textContent='';
+    const dialog=$('delete-dialog');
+    if(typeof dialog.showModal==='function')dialog.showModal();else dialog.setAttribute('open','');
+    $('cancel-delete').focus();
+  }catch(e){if(state.teacherToken===token)$('record-status').textContent=message(e);}
+}
+async function confirmDelete(){
+  if(!pendingDeletion||recordMutation)return;
+  const request=pendingDeletion,token=request.token;
+  if(state.teacherToken!==token){closeDeleteDialog();return;}
+  recordMutation=true;$('confirm-delete').disabled=true;$('cancel-delete').disabled=true;
+  try{
+    const data=await api('teacherDelete',{teacherToken:token,...request.selector,previewHash:request.previewHash});
+    if(state.teacherToken!==token)return;
+    closeDeleteDialog();await refreshReport();await refreshTrash();
+    if(state.teacherToken===token)$('record-status').textContent=`${data.deletedCount}건을 삭제했습니다. 실수했다면 휴지통에서 복구할 수 있습니다.`;
+  }catch(e){if(state.teacherToken===token)$('delete-error').textContent=message(e);}
+  finally{recordMutation=false;$('confirm-delete').disabled=false;$('cancel-delete').disabled=false;}
+}
+async function refreshTrash(){
+  if(!state.teacherToken)return;
+  const token=state.teacherToken;$('trash-status').textContent='휴지통을 불러오고 있어요…';
+  try{
+    const data=await api('teacherTrash',{teacherToken:token});
+    if(state.teacherToken!==token)return;
+    const host=$('trash-results');host.replaceChildren();
+    if(!data.batches.length)tableRow(host,['삭제한 기록이 없습니다.'],5);
+    for(const batch of data.batches){
+      tableRow(host,[`${batch.classNo}반`,`${batch.studentNo}번`,`${batch.count}건`,dateText(batch.deletedAt),'']);
+      const button=document.createElement('button');button.type='button';button.className='small-btn';button.textContent='복구';
+      button.setAttribute('aria-label',`${batch.classNo}반 ${batch.studentNo}번 ${batch.count}건 복구`);
+      button.addEventListener('click',()=>restoreRecords(batch.batchId,button));host.lastElementChild.lastElementChild.append(button);
+    }
+    $('trash-status').textContent=`삭제한 기록 묶음 ${data.batches.length}개`;
+  }catch(e){if(state.teacherToken===token)$('trash-status').textContent=message(e);}
+}
+async function restoreRecords(batchId,button){
+  if(recordMutation||!state.teacherToken)return;
+  const token=state.teacherToken;recordMutation=true;button.disabled=true;
+  try{
+    const data=await api('teacherRestore',{teacherToken:token,batchId});
+    if(state.teacherToken!==token)return;
+    await refreshReport();await refreshTrash();
+    if(state.teacherToken===token)$('record-status').textContent=`${data.restoredCount}건을 복구했습니다.`;
+  }catch(e){if(state.teacherToken===token)$('record-status').textContent=message(e);}
+  finally{recordMutation=false;button.disabled=false;}
+}
+$('confirm-delete').addEventListener('click',confirmDelete);
+$('cancel-delete').addEventListener('click',closeDeleteDialog);
+$('delete-dialog').addEventListener('cancel',event=>{if(recordMutation)event.preventDefault();else pendingDeletion=null;});
+$('delete-dialog').addEventListener('close',()=>{pendingDeletion=null;});
+$('refresh-trash').addEventListener('click',refreshTrash);
+$('trash-panel').addEventListener('toggle',()=>{if($('trash-panel').open)refreshTrash();});
 
 const UNIT_CATALOG = {"1":[{"id":"1","name":"1. 9까지의 수","detail":"9까지 세기 · 수의 순서 · 크기"},{"id":"2","name":"2. 여러 가지 모양","detail":"상자 모양 · 둥근기둥 모양 · 공 모양"},{"id":"3","name":"3. 덧셈과 뺄셈","detail":"한 자리 수 · 합이 9 이하인 계산","arithmetic":true},{"id":"4","name":"4. 비교하기","detail":"길이 · 높이 · 넓이 · 양 · 무게"},{"id":"5","name":"5. 50까지의 수","detail":"50까지의 수 · 10개씩 묶음 · 순서"}],"2":[{"id":"1","name":"1. 100까지의 수","detail":"60~99 · 수의 순서와 크기 · 짝수와 홀수"},{"id":"2","name":"2. 덧셈과 뺄셈(1)","detail":"세 수 계산 · 10이 되는 더하기 · 10에서 빼기 · 10 만들어 더하기","arithmetic":true},{"id":"3","name":"3. 모양과 시각","detail":"네모 · 세모 · 동그라미 · 몇 시 · 몇 시 30분"},{"id":"4","name":"4. 덧셈과 뺄셈(2)","detail":"한 자리 수끼리 받아올림 덧셈 · 십몇에서 받아내림 뺄셈","arithmetic":true},{"id":"5","name":"5. 규칙 찾기","detail":"모양 반복 · 수의 규칙"},{"id":"6","name":"6. 덧셈과 뺄셈(3)","detail":"받아올림·받아내림 없는 두 자리 수 덧셈과 뺄셈","arithmetic":true}]};
 function unitLabel(term,unit) {
