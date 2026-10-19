@@ -1,0 +1,11 @@
+{
+  "name": "math-1-schools",
+  "version": "2.0.0",
+  "private": true,
+  "scripts": {
+    "test": "node tests/quiz.test.cjs && node --test tests/bridge.test.cjs"
+  },
+  "devDependencies": {
+    "jsdom": "30.1.3"
+  }
+}
