@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#7755e8">
   <meta name="description" content="초등학교 1학년 단원별 수학 퀴즈 - 학생은 반과 번호로 참여, 선생님은 전체 학급 결과 확인">
   <title>반짝반짝 수학 탐험대</title>
-<link rel="stylesheet" href="style.css?v=20261020-schoolnumber">
+<link rel="stylesheet" href="style.css?v=20261020-resultsync">
 </head>
 <body>
   <main class="shell" id="app">
@@ -86,6 +86,7 @@
       <div class="mascot" aria-hidden="true">👩‍🏫</div><h1>선생님 결과 확인</h1>
       <p class="muted">학교 번호와 공통 비밀번호를 입력해 주세요.</p>
       <label class="password-label" for="teacher-school">조회할 학교 번호</label><input id="teacher-school" class="password-input" type="number" min="1" step="1" inputmode="numeric" placeholder="예: 10" autocomplete="off">
+      <details id="legacy-school-panel" class="legacy-school-panel"><summary>이전에 학교 이름으로 저장한 결과 확인</summary><p class="tiny">학교 번호로 바꾸기 전의 결과가 보이지 않는다면 이전 학교 이름으로 조회하세요. 기존 기록은 삭제되지 않습니다.</p><label class="password-label" for="teacher-legacy-school">이전 학교 이름</label><input id="teacher-legacy-school" class="password-input" type="text" maxlength="60" placeholder="예: ○○초등학교" autocomplete="off" disabled></details>
       <label class="password-label" for="teacher-password">교사용 비밀번호</label>
       <input id="teacher-password" class="password-input" type="password" autocomplete="off" placeholder="비밀번호">
       <p id="teacher-error" class="error" role="alert"></p>
@@ -96,7 +97,8 @@
       <div class="dashboard-header"><div><p class="eyebrow">선생님 전용</p><h1>📊 우리 학교 수학 결과</h1><p id="report-school" class="muted"></p></div><div class="toolbar"><button id="refresh" class="small-btn">🔄 새로고침</button><button id="download-csv" class="small-btn">⬇️ CSV</button><button id="logout" class="small-btn">로그아웃</button></div></div>
       <div class="filters"><label>학급 <select id="filter-class"><option value="all">전체 반</option></select></label><label>학기 <select id="filter-term"><option value="all">전체 학기</option><option value="1">1학기</option><option value="2">2학기</option></select></label><label>단원 <select id="filter-unit"><option value="all">모든 단원</option></select></label><label>유형 <select id="filter-mode"><option value="all">모든 유형</option><option value="add">덧셈</option><option value="sub">뺄셈</option><option value="mix">골고루</option></select></label></div>
       <p class="tiny">「이 학생 기록 삭제」는 모든 학기·단원에 적용됩니다. 「모든 제출 기록」에서는 한 건씩 삭제할 수 있습니다.</p>
-      <p id="dashboard-status" class="muted" role="status"></p>
+      <p id="dashboard-status" class="muted" role="status" aria-live="polite"></p>
+      <p class="tiny">새 학생 결과는 약 30초마다 자동으로 갱신됩니다. 학생이 마지막까지 풀고 결과 저장에 성공해야 통계에 포함됩니다.</p>
       <div class="stat-grid"><div class="stat"><span>참여 학생</span><strong id="stat-students">-</strong></div><div class="stat"><span>최근 평균 해결률</span><strong id="stat-average">-</strong></div><div class="stat"><span>총 응시</span><strong id="stat-attempts">-</strong></div></div>
       <h2>🏫 반별 결과</h2><div class="table-scroll"><table><thead><tr><th>반</th><th>참여 학생</th><th>최근 평균 해결률</th><th>총 응시</th></tr></thead><tbody id="class-summary"></tbody></table></div>
       <h2>⭐ 학생별 최근 결과</h2><p class="tiny">학기·유형 조건에 맞는 학생별 가장 최근 결과입니다.</p><div class="table-scroll"><table><thead><tr><th>기록 관리</th><th>반</th><th>번호</th><th>학기</th><th>단원</th><th>유형</th><th>점수</th><th>힌트 후 정답</th><th>정답 공개</th><th>제출 시각</th><th>틀린 문제 / 힌트 기록</th></tr></thead><tbody id="student-summary"></tbody></table></div>
@@ -109,7 +111,7 @@
   </main>
   <footer class="footer">2022 개정 교육과정을 참고한 초등 1학년 단원별 연습</footer>
 <div class="copyright-badge" aria-label="저작권자 t1ssue_Jung">©t1ssue_Jung</div>
-<script src="config.js"></script>
-<script src="app.js"></script>
+<script src="config.js?v=20261020-resultsync"></script>
+<script src="app.js?v=20261020-resultsync"></script>
 </body>
 </html>
