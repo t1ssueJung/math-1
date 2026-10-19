@@ -531,5 +531,3 @@ $('refresh').addEventListener('click', refreshReport);
 $('logout').addEventListener('click', logoutTeacher);
 $('download-csv').addEventListener('click', exportCsv);
 ['filter-class','filter-term','filter-mode','filter-unit'].forEach((id) => $(id).addEventListener('change', renderReport));
-
-

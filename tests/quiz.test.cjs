@@ -126,4 +126,3 @@ console.log('PASS: school input validation, school/class identity, legacy school
  }
  dom.window.close();console.log('PASS: actual HTML for all 11 units, word answers, visuals, hints, solutions, saving, teacher statistics, CSV, logo and delayed navigation');
 })().catch(e=>{console.error(e);process.exitCode=1;});
-

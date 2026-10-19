@@ -38,5 +38,3 @@ test('bridge rejects an unapproved embedding origin and never embeds a password'
   context.bridgeOutput_({parentOrigin:'https://evil.example',nonce:'a'.repeat(32)});assert.ok(!allowAll);assert.ok(!content.includes('google.script.run'));
   context.bridgeOutput_({parentOrigin:'https://t1ssueJung.github.io',nonce:'b'.repeat(32)});assert.ok(allowAll);assert.ok(content.includes('event.source!==window.top'));assert.ok(!content.includes('TEACHER_PASSWORD'));
 });
-
-

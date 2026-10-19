@@ -416,4 +416,3 @@ function bridgeOutput_(p){
   return HtmlService.createHtmlOutput('<!doctype html><html lang="ko"><head><meta charset="utf-8"></head><body><script>'+script+'</script></body></html>')
     .setTitle('수학 학습 기록 연결').setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
-

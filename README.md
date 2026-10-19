@@ -81,4 +81,3 @@
 개발용 검증: Node.js 24에서 `npm ci`, `npm test`.
 
 기술 참고: [GitHub Pages](https://docs.github.com/en/pages/getting-started-with-github-pages/what-is-github-pages), [Apps Script 서버 호출](https://developers.google.com/apps-script/guides/html/communication), [Apps Script iframe 설정](https://developers.google.com/apps-script/reference/html/x-frame-options-mode).
-
