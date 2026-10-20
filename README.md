@@ -127,3 +127,14 @@
 개발용 검증: Node.js 24에서 `npm ci`, `npm test`.
 
 기술 참고: [GitHub Pages](https://docs.github.com/en/pages/getting-started-with-github-pages/what-is-github-pages), [Apps Script 서버 호출](https://developers.google.com/apps-script/guides/html/communication), [Apps Script iframe 설정](https://developers.google.com/apps-script/reference/html/x-frame-options-mode).
+
+## 빠른 실행과 학생별 통계 (2026-10-20)
+
+- **학생 응시 화면:** 학생/교사 메뉴에 들어갈 때 서버 연결을 미리 시작하여 학교 번호·반·번호나 비밀번호를 입력하는 동안 연결 준비가 진행됩니다.
+- **Apps Script 기록 서버:** 응시 제출 시 ID 열만 먼저 검색하며, 교사 보고서는 답안 원본 열을 제외하고 읽습니다. 교사 조회는 학생 쓰기 잠금을 기다리지 않습니다. 교사 로그인은 만료된 세션을 매번 대량 삭제하지 않고, 인증 정보를 잠시 캐시에 보관합니다. 기존 시트와 학생 점수는 보존합니다.
+- **학생별 평균 해결률 순위:** 선택한 반·학기·단원·유형 필터의 모든 제출을 학생별로 합산합니다. `총 맞힌 문제 수 ÷ 총 출제 문제 수 × 100`을 반올림해 표시하며, 동점자는 공동 순위입니다. 응시 횟수를 같이 표시합니다. 10문제 만점 1회만 기준으로 순위를 정하지 않습니다.
+- **학생별 학습 결과 모아보기:** 학생 선택 목록이나 순위표의 「기록 보기」를 누르면 해당 학생의 모든 응시를 날짜순으로 확인할 수 있습니다. 힌트 후 정답, 정답 공개, 오답 내용이 포함됩니다.
+- **표 렌더링 개선:** 대량 기록이 있을 때 「모든 제출 기록」은 실제로 펼칠 때 그려 초기 화면이 더 빨리 표시됩니다.
+
+**주의:** GitHub에서 `backend/Code.gs`를 바꿔도 실제 Google Apps Script 실행 서버는 자동 업데이트되지 않습니다. 학생 시작·제출 및 교사 조회 속도 개선을 적용하려면 [최신 서버 전체 코드](https://github.com/t1ssueJung/math-1/blob/main/backend/Code.gs)를 Google Apps Script의 Code.gs에 **전체 붙여넣고**, `배포 → 배포 관리 → 해당 웹앱 수정 → 새 버전 → 배포`를 진행해야 합니다. 기존 `SPREADSHEET_ID`, `TEACHER_PASSWORD` 스크립트 속성과 원본 스프레드시트는 수정하지 마세요. 배포된 URL은 그대로 유지합니다.
+
