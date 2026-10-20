@@ -10,9 +10,12 @@ class Sheet {
  getRange(r,c,n,m){return {getValues:()=>Array.from({length:n},(_,i)=>Array.from({length:m},(_,j)=>this.rows[r+i-1]?.[c+j-1]??'')),setValues:v=>{v.forEach((row,i)=>{this.rows[r+i-1]??=[]; row.forEach((x,j)=>this.rows[r+i-1][c+j-1]=x);});}};}
 }
 const sheets={},props={TEACHER_PASSWORD:'test-only'},book={getId:()=> 'local-test',getSheetByName:n=>sheets[n],insertSheet:n=>sheets[n]=new Sheet()};
+const cache=new Map();
+const cacheService={getScriptCache:()=>({get:key=>cache.get(key)||null,put:(key,value)=>cache.set(key,String(value)),remove:key=>cache.delete(key)})};
 const context=vm.createContext({console,Date,Math,JSON,Number,String,Array,Set,Error,
  PropertiesService:{getScriptProperties:()=>({getProperty:k=>props[k],setProperty:(k,v)=>props[k]=v})},
  SpreadsheetApp:{getActiveSpreadsheet:()=>book,openById:()=>book,flush:()=>{}},
+ CacheService:cacheService,
  LockService:{getScriptLock:()=>({waitLock(){},tryLock:()=>true,releaseLock(){}})},
  Utilities:{getUuid:()=>crypto.randomUUID(),DigestAlgorithm:{SHA_256:'sha256'},Charset:{UTF_8:'utf8'},computeDigest:(_,s)=>[...crypto.createHash('sha256').update(s).digest()]}
 });
@@ -99,6 +102,11 @@ assert.equal(numberedReport.ok,true);
 assert.ok(numberedReport.records.some(r=>r.id===numberedStart.attemptId&&r.class_no===3&&r.student_no===12));
 assert.equal(numberedReport.records.some(r=>r.school_name==='다른초등학교'),false);
 console.log('PASS: school number 10 student save appears in matching teacher dashboard');
+assert.ok(cache.size>0);
+const savedNumToken=numberedLogin.teacherToken;
+assert.equal(call({action:'teacherLogout',teacherToken:savedNumToken}).ok,true);
+assert.equal(call({action:'teacherReport',teacherToken:savedNumToken}).ok,false);
+console.log('PASS: teacher session cache speeds report and logout revokes cached token');
 
 // Spreadsheet may contain school identifiers typed as numbers (or malformed
 // values). One legacy row must not make all teachers' reports fail.
