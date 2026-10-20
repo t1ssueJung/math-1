@@ -42,8 +42,8 @@ const records=[
   r(3,1,2,'2026-10-19T08:00:00Z')
 ];
 const groups=context.studentAverages(records);
-assert.deepEqual(groups.map(g=>g.key),['1/2','2/1','1/1','3/1']);
-assert.deepEqual(groups.map(g=>g.rank),[1,1,3,4]);
+assert.deepEqual(Array.from(groups,g=>g.key),['1/2','2/1','1/1','3/1']);
+assert.deepEqual(Array.from(groups,g=>g.rank),[1,1,3,4]);
 assert.equal(groups.find(g=>g.key==='1/1').attempts,2);
 assert.equal(groups.find(g=>g.key==='1/1').rate,.5);
 assert.equal(groups.find(g=>g.key==='1/1').latest.score,9);
