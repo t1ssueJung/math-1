@@ -100,6 +100,31 @@ assert.ok(numberedReport.records.some(r=>r.id===numberedStart.attemptId&&r.class
 assert.equal(numberedReport.records.some(r=>r.school_name==='다른초등학교'),false);
 console.log('PASS: school number 10 student save appears in matching teacher dashboard');
 
+// Spreadsheet may contain school identifiers typed as numbers (or malformed
+// values). One legacy row must not make all teachers' reports fail.
+const school24='학교번호 24';
+const start24=call({action:'start',schoolName:school24,classNo:5,studentNo:7,term:1,unit:'3',mode:'mix'});
+assert.equal(start24.ok,true);
+assert.equal(call({action:'submit',attemptId:start24.attemptId,answers:answerSet(start24.questions)}).ok,true);
+const attempt24=sheets.math_attempts.rows.find(r=>r[0]===start24.attemptId);
+const schoolColumn=sheets.math_attempts.rows[0].indexOf('school_name');
+assert.equal(typeof attempt24[schoolColumn],'string');
+attempt24[schoolColumn]=24; // Google Sheets may read an old school code as number
+const schoolClassRow=sheets.math_classes.rows.find(r=>r[0]===5 && r[2]===school24);
+assert.ok(schoolClassRow);
+schoolClassRow[2]=24;
+const oldSchoolRow=sheets.math_attempts.rows.find(r=>r[0]===numberedStart.attemptId);
+const oldSchoolValue=oldSchoolRow[schoolColumn];
+oldSchoolRow[schoolColumn]=true; // A malformed unrelated row must be ignored
+const login24=call({action:'teacherLogin',schoolName:school24,password:'test-only'});
+const report24=call({action:'teacherReport',teacherToken:login24.teacherToken});
+assert.equal(report24.ok,true,report24.error);
+assert.ok(report24.records.some(r=>r.id===start24.attemptId && r.class_no===5 && r.student_no===7));
+assert.ok(report24.classes.includes(5));
+oldSchoolRow[schoolColumn]=oldSchoolValue;
+assert.equal(call({action:'start',schoolName:24,classNo:9,studentNo:9,term:1,mode:'mix'}).ok,false);
+console.log('PASS: numeric school cells and malformed legacy school rows do not block reports');
+
 // Deletion is authenticated, scoped to the session school and reversible.
 const deletionSchool='삭제검증초등학교',otherDeletionSchool='삭제검증다른초등학교';
 function fixtureAttempt(schoolName,studentNo,finish=true){
