@@ -122,6 +122,8 @@ function setChoice(group, property, value) {
   });
 }
 function openStudent() {
+  // 학교·반·번호를 입력하는 동안 서버 연결을 미리 준비합니다.
+  connection().catch(()=>{});
   try{$('school-name').value=localStorage.getItem('math-school-number')||'';}catch(_){}
   $('student-error').textContent = '';
   renderUnits();
@@ -412,6 +414,81 @@ function latestByStudent(records) {
   }
   return [...found.values()].sort((a, b) => a.class_no - b.class_no || a.student_no - b.student_no);
 }
+// 선택한 조건 안의 모든 응시를 학생별로 묶습니다.
+function studentAverages(records) {
+  const map=new Map();
+  for(const r of records) {
+    const key=String(r.class_no)+'/'+String(r.student_no);
+    let group=map.get(key);
+    if(!group) {
+      group={key,classNo:r.class_no,studentNo:r.student_no,attempts:0,
+        solved:0,total:0,first:0,helped:0,revealed:0,latest:r,records:[]};
+      map.set(key,group);
+    }
+    group.attempts++;
+    group.solved+=Number(r.score)||0;
+    group.total+=Number(r.total)||0;
+    group.first+=Number(r.first_try_count)||0;
+    group.helped+=Number(r.helped_count)||0;
+    group.revealed+=Number(r.revealed_count)||0;
+    group.records.push(r);
+  }
+  const ranked=[...map.values()];
+  ranked.sort((a,b)=>(b.total?b.solved/b.total:-1)-(a.total?a.solved/a.total:-1)
+    ||a.classNo-b.classNo||a.studentNo-b.studentNo);
+  let previous=null;
+  ranked.forEach((g,i)=>{
+    g.rate=g.total?g.solved/g.total:0;
+    g.rank=previous && Math.abs(previous.rate-g.rate)<1e-12?previous.rank:i+1;
+    previous=g;
+  });
+  return ranked;
+}
+function renderStudentDetail(groups) {
+  const selected=$('student-choose').value;
+  const detail=$('student-detail'),body=$('student-detail-body');
+  const group=groups.find(g=>g.key===selected);
+  if(!group){detail.classList.add('hidden');body.replaceChildren();return;}
+  detail.classList.remove('hidden');
+  $('student-detail-title').textContent=group.classNo+'반 '+group.studentNo+'번 학습 기록';
+  $('student-detail-summary').textContent=
+    '총 '+group.attempts+'회 응시 · 평균 해결률 '+Math.round(group.rate*100)+
+    '% · 힌트 후 정답 '+group.helped+'개 · 정답 공개 '+group.revealed+'개';
+  body.replaceChildren();
+  for(const r of group.records){
+    tableRow(body,[dateText(r.completed_at),r.term+'학기 · '+recordUnitLabel(r),
+      {add:'덧셈',sub:'뺄셈',mix:'골고루'}[r.mode]||r.mode,
+      r.score+'/'+r.total,
+      String(r.helped_count||0),String(r.revealed_count||0),wrongText(r)]);
+  }
+}
+function renderStudentRanking(records) {
+  const groups=studentAverages(records);
+  const body=$('ranking-body'),select=$('student-choose'),selected=select.value;
+  body.replaceChildren();
+  select.replaceChildren(new Option('반과 번호를 선택하세요',''));
+  // 선택 목록은 반·번호순으로 제공하여 학생을 빠르게 찾을 수 있습니다.
+  [...groups].sort((a,b)=>a.classNo-b.classNo||a.studentNo-b.studentNo)
+    .forEach(g=>select.appendChild(new Option(g.classNo+'반 '+g.studentNo+'번',g.key)));
+  if(groups.some(g=>g.key===selected))select.value=selected;
+  if(!groups.length)tableRow(body,['선택한 조건의 학생 기록이 없습니다.'],7);
+  for(const g of groups) {
+    tableRow(body,[g.rank+'위',g.classNo+'반',g.studentNo+'번',
+      g.attempts+'회',Math.round(g.rate*100)+'%',
+      g.latest.score+'/'+g.latest.total,'']);
+    const button=document.createElement('button');
+    button.type='button';button.className='rank-btn';button.textContent='기록 보기';
+    button.setAttribute('aria-label',g.classNo+'반 '+g.studentNo+'번 전체 기록 보기');
+    button.addEventListener('click',()=>{
+      select.value=g.key;
+      renderStudentDetail(groups);
+      if(typeof $('student-detail').scrollIntoView==='function')
+        $('student-detail').scrollIntoView({behavior:'smooth',block:'nearest'});
+    });
+    body.lastElementChild.lastElementChild.appendChild(button);
+  }
+  renderStudentDetail(groups);
+}
 function percent(records) {
   if (!records.length) return '-';
   return `${Math.round(100 * records.reduce((s, r) => s + r.score / r.total, 0) / records.length)}%`;
@@ -445,6 +522,8 @@ function studentTable(id, records) {
   const body = $(id);
   body.replaceChildren();
   if (!records.length) return tableRow(body, ['해당하는 제출 기록이 없어요.'], 11);
+  if(id==='all-results' && records.length>150 && !$('all-records-panel').open)
+    return tableRow(body,['기록이 많아 화면 속도를 위해 펼칠 때 불러옵니다.'],11);
   records.forEach((r) => {tableRow(body, [
     '',`${r.class_no}반`, `${r.student_no}번`, `${r.term}학기`, recordUnitLabel(r),
     { add: '덧셈', sub: '뺄셈', mix: '골고루' }[r.mode] || r.mode,
@@ -463,6 +542,7 @@ function renderReport() {
   $('stat-students').textContent = `${latest.length}명`;
   $('stat-average').textContent = percent(latest);
   $('stat-attempts').textContent = `${rows.length}회`;
+  renderStudentRanking(rows);
   studentTable('student-summary', latest);
   studentTable('all-results', rows);
   const body = $('class-summary');
@@ -499,7 +579,10 @@ async function logoutTeacher() {
   const token = state.teacherToken;
   closeDeleteDialog();$('trash-results').replaceChildren();$('trash-status').textContent='';$('record-status').textContent='';$('trash-panel').open=false;
   state.teacherToken = null; state.records = []; state.classes = [];
-  ['student-summary', 'all-results', 'class-summary'].forEach((id) => $(id).replaceChildren());
+  $('student-choose').replaceChildren(new Option('반과 번호를 선택하세요',''));
+  $('student-detail').classList.add('hidden');
+  $('student-detail-body').replaceChildren();
+  ['ranking-body','student-summary', 'all-results', 'class-summary'].forEach((id) => $(id).replaceChildren());
   show('home');
   if (token) { try { await api('teacherLogout', { teacherToken: token }); } catch (_) { /* UI logged out */ } }
 }
@@ -650,7 +733,12 @@ $('home-logo').addEventListener('click', goHome);
 $('student-entry').addEventListener('click', openStudent);
 $('teacher-school').value='';
 try{$('teacher-school').value=localStorage.getItem('math-school-number')||'';}catch(_){}
-$('teacher-entry').addEventListener('click', () => { $('teacher-error').textContent = ''; show('teacher-login'); });
+$('teacher-entry').addEventListener('click', () => {
+  $('teacher-error').textContent = '';
+  // 선생님이 비밀번호를 입력하는 동안 서버 연결을 미리 준비합니다.
+  connection().catch(()=>{});
+  show('teacher-login');
+});
 $('legacy-school-panel').addEventListener('toggle', () => {
   $('teacher-school').disabled = $('legacy-school-panel').open;
   $('teacher-legacy-school').disabled = !$('legacy-school-panel').open;
@@ -667,4 +755,9 @@ $('teacher-password').addEventListener('keydown', (e) => { if (e.key === 'Enter'
 $('refresh').addEventListener('click', refreshReport);
 $('logout').addEventListener('click', logoutTeacher);
 $('download-csv').addEventListener('click', exportCsv);
+$('student-choose').addEventListener('change',()=>renderStudentDetail(studentAverages(filtered())));
+$('all-records-panel').addEventListener('toggle',()=>{
+  const rows=filtered();
+  if(rows.length>150)studentTable('all-results',rows);
+});
 ['filter-class','filter-term','filter-mode','filter-unit'].forEach((id) => $(id).addEventListener('change', renderReport));
