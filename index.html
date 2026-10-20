@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#7755e8">
   <meta name="description" content="초등학교 1학년 단원별 수학 퀴즈 - 학생은 반과 번호로 참여, 선생님은 전체 학급 결과 확인">
   <title>반짝반짝 수학 탐험대</title>
-<link rel="stylesheet" href="style.css?v=20261020-resultsync">
+<link rel="stylesheet" href="style.css?v=20261020-rankings">
 </head>
 <body>
   <main class="shell" id="app">
@@ -101,8 +101,21 @@
       <p class="tiny">새 학생 결과는 약 30초마다 자동으로 갱신됩니다. 학생이 마지막까지 풀고 결과 저장에 성공해야 통계에 포함됩니다.</p>
       <div class="stat-grid"><div class="stat"><span>참여 학생</span><strong id="stat-students">-</strong></div><div class="stat"><span>최근 평균 해결률</span><strong id="stat-average">-</strong></div><div class="stat"><span>총 응시</span><strong id="stat-attempts">-</strong></div></div>
       <h2>🏫 반별 결과</h2><div class="table-scroll"><table><thead><tr><th>반</th><th>참여 학생</th><th>최근 평균 해결률</th><th>총 응시</th></tr></thead><tbody id="class-summary"></tbody></table></div>
+      <h2>🏆 학생별 평균 해결률 순위</h2>
+      <p class="tiny">선택한 학기·단원·유형에서 학생이 제출한 모든 퀴즈의 맞힌 문제 수를 합산해 계산합니다. 같은 해결률이면 공동 순위이며, 응시 횟수도 함께 표시합니다.</p>
+      <div class="table-scroll"><table><thead><tr><th>순위</th><th>반</th><th>번호</th><th>응시 횟수</th><th>평균 해결률</th><th>최근 점수</th><th>학습 기록</th></tr></thead><tbody id="ranking-body"></tbody></table></div>
+      <h2>📚 학생별 학습 결과 모아보기</h2>
+      <p class="tiny">반·번호를 선택하면 그 학생의 모든 제출 기록과 힌트 사용 내역을 한곳에서 볼 수 있습니다. 위 순위표의 「기록 보기」를 눌러도 됩니다.</p>
+      <label class="student-picker-label" for="student-choose">학생 선택
+        <select id="student-choose"><option value="">반과 번호를 선택하세요</option></select>
+      </label>
+      <section id="student-detail" class="student-detail hidden" aria-live="polite">
+        <h3 id="student-detail-title"></h3>
+        <p id="student-detail-summary"></p>
+        <div class="table-scroll"><table><thead><tr><th>제출 시각</th><th>학기·단원</th><th>유형</th><th>점수</th><th>힌트 후 정답</th><th>정답 공개</th><th>틀린 문제 / 힌트 기록</th></tr></thead><tbody id="student-detail-body"></tbody></table></div>
+      </section>
       <h2>⭐ 학생별 최근 결과</h2><p class="tiny">학기·유형 조건에 맞는 학생별 가장 최근 결과입니다.</p><div class="table-scroll"><table><thead><tr><th>기록 관리</th><th>반</th><th>번호</th><th>학기</th><th>단원</th><th>유형</th><th>점수</th><th>힌트 후 정답</th><th>정답 공개</th><th>제출 시각</th><th>틀린 문제 / 힌트 기록</th></tr></thead><tbody id="student-summary"></tbody></table></div>
-      <details><summary>📚 모든 제출 기록 펼쳐보기</summary><div class="table-scroll"><table><thead><tr><th>기록 관리</th><th>반</th><th>번호</th><th>학기</th><th>단원</th><th>유형</th><th>점수</th><th>힌트 후 정답</th><th>정답 공개</th><th>제출 시각</th><th>틀린 문제 / 힌트 기록</th></tr></thead><tbody id="all-results"></tbody></table></div></details>
+      <details id="all-records-panel"><summary>📚 모든 제출 기록 펼쳐보기</summary><div class="table-scroll"><table><thead><tr><th>기록 관리</th><th>반</th><th>번호</th><th>학기</th><th>단원</th><th>유형</th><th>점수</th><th>힌트 후 정답</th><th>정답 공개</th><th>제출 시각</th><th>틀린 문제 / 힌트 기록</th></tr></thead><tbody id="all-results"></tbody></table></div></details>
       <details id="trash-panel"><summary>🗑️ 휴지통 — 삭제한 기록 복구</summary><p class="tiny">삭제한 기록은 통계와 CSV에서 제외됩니다. 복구하면 다시 표시됩니다.</p><button id="refresh-trash" class="small-btn" type="button">휴지통 새로고침</button><p id="trash-status" role="status"></p><div class="table-scroll"><table><thead><tr><th>반</th><th>번호</th><th>기록 수</th><th>삭제 시각</th><th>복구</th></tr></thead><tbody id="trash-results"></tbody></table></div></details>
       <p id="record-status" class="muted" role="status" aria-live="polite"></p>
       <dialog id="delete-dialog" aria-labelledby="delete-title"><h2 id="delete-title">학생 기록을 삭제할까요?</h2><p id="delete-summary" class="delete-summary"></p><p id="delete-scope"></p><p>삭제한 기록은 통계와 CSV에서 제외되며, 휴지통에서 복구할 수 있습니다.</p><p id="delete-error" class="error" role="alert"></p><div class="dialog-buttons"><button id="cancel-delete" type="button" class="small-btn" autofocus>취소</button><button id="confirm-delete" type="button" class="danger-btn">확인한 기록 삭제</button></div></dialog>
@@ -111,7 +124,7 @@
   </main>
   <footer class="footer">2022 개정 교육과정을 참고한 초등 1학년 단원별 연습</footer>
 <div class="copyright-badge" aria-label="저작권자 t1ssue_Jung">©t1ssue_Jung</div>
-<script src="config.js?v=20261020-resultsync"></script>
-<script src="app.js?v=20261020-resultsync"></script>
+<script src="config.js?v=20261020-rankings"></script>
+<script src="app.js?v=20261020-rankings"></script>
 </body>
 </html>
