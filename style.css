@@ -25,3 +25,14 @@ button,input,select{font:inherit}button{cursor:pointer;touch-action:manipulation
 /* Keep the credit visible at the viewport corner, including mobile safe areas. */
 .copyright-badge{position:fixed;right:max(12px,env(safe-area-inset-right));bottom:max(12px,env(safe-area-inset-bottom));z-index:50;padding:8px 11px;border-radius:12px;background:rgba(255,255,255,.95);color:#687b73;font-size:13px;font-weight:700;line-height:1.3;box-shadow:0 2px 12px #30443b12;pointer-events:none;user-select:none}
 body{padding-bottom:64px}
+
+/* Student ranking and grouped history, teacher view */
+.student-picker-label {display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:15px 0;font-size:17px;font-weight:800;color:#5742a4}
+.student-picker-label select {min-width:200px;max-width:100%;padding:12px;border:2px solid #e1d9f4;border-radius:12px;background:white;font-size:16px}
+.student-detail {border:2px solid #e7ddff;background:#fbf9ff;border-radius:18px;padding:17px;margin:15px 0 27px}
+.student-detail h3 {color:#6650b5;margin:0 0 8px}
+.student-detail td {max-width:260px;overflow-wrap:anywhere}
+.student-detail .table-scroll {background:white;border-radius:12px}
+.rank-btn {border:0;border-radius:11px;padding:9px 12px;background:#ebe3ff;color:#5d45b5;font-weight:800}
+.rank-btn:hover {background:#ddd0ff}
+#ranking-body tr:first-child td {font-weight:800}
