@@ -78,6 +78,48 @@ function write_(sheet,name,record,row) {
   const values=TABLES_[name].map(key=>record[key] === undefined || record[key] === null ? '' : record[key]);
   sheet.getRange(row || sheet.getLastRow()+1,1,1,values.length).setValues([values]);
 }
+// 응시 제출 시 문제·답안이 들어 있는 모든 행을 읽지 않고 ID 열만 검색합니다.
+function attemptById_(sheet,id) {
+  const last=sheet.getLastRow();
+  if(last<2)return null;
+  const ids=sheet.getRange(2,1,last-1,1).getValues();
+  const index=ids.findIndex(values=>values[0]===id);
+  if(index<0)return null;
+  const row=index+2,values=sheet.getRange(row,1,1,TABLES_.math_attempts.length).getValues()[0];
+  const record={_row:row};
+  TABLES_.math_attempts.forEach((key,i)=>record[key]=values[i]);
+  return record;
+}
+// 조회에는 채점 답안(G열)이 필요하지 않으므로 이 큰 열을 읽지 않습니다.
+function reportRows_(sheet) {
+  const n=sheet.getLastRow()-1;
+  if(n<1)return [];
+  const before=sheet.getRange(2,1,n,6).getValues();
+  const after=sheet.getRange(2,8,n,12).getValues();
+  return before.map((left,i)=>{
+    const values=left.concat([''],after[i]),record={_row:i+2};
+    TABLES_.math_attempts.forEach((key,j)=>record[key]=values[j]);
+    return record;
+  });
+}
+function teacherSession_(sheet,token) {
+  const key='math-session-'+hash_(token);
+  // 캐시는 최대 1시간만 저장하며 시트의 8시간 만료 시간보다 짧습니다.
+  if(typeof CacheService!=='undefined'){
+    const cached=CacheService.getScriptCache().get(key);
+    if(cached)return {school_name:cached,cacheKey:key,_row:null};
+  }
+  const last=sheet.getLastRow();
+  if(last<2)return null;
+  const hashes=sheet.getRange(2,1,last-1,1).getValues();
+  const index=hashes.findIndex(v=>v[0]===hash_(token));
+  if(index<0)return null;
+  const values=sheet.getRange(index+2,1,1,3).getValues()[0];
+  const remaining=Date.parse(values[1])-Date.now();
+  if(!(remaining>0))return null;
+  if(typeof CacheService!=='undefined')CacheService.getScriptCache().put(key,String(values[2]||legacySchool_()),Math.min(3600,Math.floor(remaining/1000)));
+  return {school_name:values[2],cacheKey:key,_row:index+2};
+}
 function hash_(s) {
   return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,s,Utilities.Charset.UTF_8)
     .map(n=>('0'+((n+256)%256).toString(16)).slice(-2)).join('');
@@ -96,8 +138,11 @@ function quizApi(request) {
   }
 }
 function quizApi_(p) {
-  const lock=LockService.getScriptLock();
-  if (!lock.tryLock(20000)) return {ok:false,error:'다른 친구의 기록을 저장 중이에요. 잠시 후 다시 눌러 주세요.'};
+  const action=p && p.action;
+  // 조회는 변경 작업과 병렬로 처리해 교사 조회가 학생 시작·제출을 막지 않습니다.
+  const needLock=!['teacherReport','teacherTrash','teacherDeletePreview'].includes(action);
+  const lock=needLock?LockService.getScriptLock():null;
+  if (needLock && !lock.tryLock(20000)) return {ok:false,error:'다른 친구의 기록을 저장 중이에요. 잠시 후 다시 눌러 주세요.'};
   try {
     if (!p || typeof p!=='object' || JSON.stringify(p).length>20000) throw new Error('요청 내용을 확인해 주세요.');
     const props=PropertiesService.getScriptProperties(), book=book_();
@@ -119,7 +164,7 @@ function quizApi_(p) {
       case 'submit': {
         if(typeof p.attemptId!=='string'||!/^[0-9a-f-]{36}$/i.test(p.attemptId)) throw new Error('응시 번호를 확인해 주세요.');
         const sheet=sheet_(book,'math_attempts');
-        const r=rows_(sheet,'math_attempts').find(r=>r.id===p.attemptId);
+        const r=attemptById_(sheet,p.attemptId);
         if (!r) throw new Error('응시 기록을 찾을 수 없어요.');
         if(r.deleted_at)throw new Error('선생님이 삭제한 응시 기록입니다. 처음 화면에서 다시 시작해 주세요.');
         if (r.completed_at) {result=summary_(r);break;}
@@ -133,10 +178,10 @@ function quizApi_(p) {
         if (typeof p.password!=='string'||hash_(password)!==hash_(p.password)) throw new Error('비밀번호가 맞지 않습니다.');
         const school=schoolName_(p.schoolName===undefined?legacySchool_():p.schoolName);
         const sheet=sheet_(book,'math_teacher_sessions');
-        const sessions=rows_(sheet,'math_teacher_sessions');
-        for(let i=sessions.length-1;i>=0;i--) if(Date.parse(sessions[i].expires_at)<=Date.now()) sheet.deleteRow(sessions[i]._row);
+        // 로그인 때 과거 세션을 모두 읽고 한 행씩 삭제하지 않아 로그인 속도를 높입니다.
         const token=Utilities.getUuid()+Utilities.getUuid();
         write_(sheet,'math_teacher_sessions',{school_name:school,token_hash:hash_(token),expires_at:new Date(Date.now()+8*3600000).toISOString()});
+        if(typeof CacheService!=='undefined')CacheService.getScriptCache().put('math-session-'+hash_(token),school,3600);
         result={teacherToken:token,schoolName:school};break;
       }
       case 'teacherDeletePreview':
@@ -147,10 +192,20 @@ function quizApi_(p) {
       case 'teacherLogout': {
         if(typeof p.teacherToken!=='string'||p.teacherToken.length!==72) throw new Error('선생님 비밀번호로 다시 로그인해 주세요.');
         const sheet=sheet_(book,'math_teacher_sessions');
-        const session=rows_(sheet,'math_teacher_sessions').find(r=>r.token_hash===hash_(p.teacherToken)&&Date.parse(r.expires_at)>Date.now());
+        const session=teacherSession_(sheet,p.teacherToken);
         if(!session) throw new Error('로그인 시간이 지났어요. 다시 로그인해 주세요.');
         const school=session.school_name||legacySchool_();
-        if(p.action==='teacherLogout') {sheet.deleteRow(session._row);break;}
+        if(p.action==='teacherLogout') {
+          if(typeof CacheService!=='undefined')CacheService.getScriptCache().remove(session.cacheKey);
+          // 캐시 조회만으로 행 번호를 얻을 수 없으므로 실제 해시 열에서 찾아 삭제합니다.
+          const last=sheet.getLastRow();
+          if(last>=2){
+            const hashes=sheet.getRange(2,1,last-1,1).getValues();
+            const index=hashes.findIndex(v=>v[0]===hash_(p.teacherToken));
+            if(index>=0)sheet.deleteRow(index+2);
+          }
+          break;
+        }
         const attemptSheet=sheet_(book,'math_attempts');
         const schoolRows=rows_(attemptSheet,'math_attempts').filter(r=>schoolKey_(r.school_name||legacySchool_())===schoolKey_(school));
         if(p.action==='teacherDeletePreview'||p.action==='teacherDelete'){
@@ -187,17 +242,17 @@ function quizApi_(p) {
         const attempts=sheet_(book,'math_attempts');
         const snapshot=p.snapshot || {lastRow:attempts.getLastRow(),at:new Date().toISOString()};
         if(!Number.isInteger(snapshot.lastRow)||snapshot.lastRow<1||!Number.isFinite(Date.parse(snapshot.at))) throw new Error('조회 기준을 확인해 주세요.');
-        const all=rows_(attempts,'math_attempts').filter(r=>schoolKey_(r.school_name||legacySchool_())===schoolKey_(school)&&!r.deleted_at&&r._row<=snapshot.lastRow&&r.completed_at&&String(r.completed_at)<=snapshot.at)
+        const all=reportRows_(attempts).filter(r=>schoolKey_(r.school_name||legacySchool_())===schoolKey_(school)&&!r.deleted_at&&r._row<=snapshot.lastRow&&r.completed_at&&String(r.completed_at)<=snapshot.at)
           .sort((a,b)=>String(b.completed_at).localeCompare(String(a.completed_at))||String(b.id).localeCompare(String(a.id)));
         const records=all.slice(offset,offset+500).map(r=>({id:r.id,school_name:r.school_name||legacySchool_(),class_no:Number(r.class_no),student_no:Number(r.student_no),term:Number(r.term),mode:r.mode,unit:r.unit||'legacy',oldScope:oldScope_(r),score:Number(r.score),total:Number(r.total),first_try_count:Number(r.first_try_count),helped_count:Number(r.helped_count),revealed_count:Number(r.revealed_count),wrong:JSON.parse(r.wrong||'[]'),completed_at:String(r.completed_at)}));
         result={schoolName:school,records,classes:[...new Set(rows_(sheet_(book,'math_classes'),'math_classes').filter(r=>schoolKey_(r.school_name||legacySchool_())===schoolKey_(school)).map(r=>Number(r.class_no)))].sort((a,b)=>a-b),nextOffset:offset+500<all.length?offset+500:null,snapshot}; break;
       }
       default: throw new Error('알 수 없는 요청입니다.');
     }
-    SpreadsheetApp.flush();
+    if(needLock)SpreadsheetApp.flush();
     return Object.assign({ok:true},result);
   } catch(e) { return {ok:false,error:e.message||'저장하지 못했어요. 다시 시도해 주세요.'}; }
-  finally {lock.releaseLock();}
+  finally {if(needLock)lock.releaseLock();}
 }
 
 const rand_ = (min        , max        ) => min + Math.floor(Math.random() * (max - min + 1));
