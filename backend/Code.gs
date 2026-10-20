@@ -12,7 +12,19 @@ function schoolName_(value){
   if(!/^[\p{L}\p{N} .()·-]{2,60}$/u.test(name))throw new Error('학교의 정식 이름을 2~60자로 입력해 주세요.');
   return name;
 }
-function schoolKey_(name){return schoolName_(name).replace(/\s/g,'').toLowerCase();}
+// 스프레드시트에 저장된 학교 식별자는 예전 입력 형식 때문에 숫자 등으로
+// 읽힐 수 있습니다. 새 학생 입력의 엄격한 검증(schoolName_)과 달리,
+// 기존 데이터 비교는 한 행이 잘못되어도 전체 교사 조회가 중단되지 않아야 합니다.
+function schoolKey_(value){
+  if (typeof value === 'number') {
+    return Number.isSafeInteger(value) && value > 0 ? '학교번호'+value : '';
+  }
+  if (typeof value !== 'string') return '';
+  const name=value.normalize('NFKC').trim().replace(/\s+/g,' ');
+  if (/^[1-9][0-9]*$/.test(name)) return '학교번호'+name;
+  if (!/^[\p{L}\p{N} .()·-]{2,60}$/u.test(name)) return '';
+  return name.replace(/\s/g,'').toLowerCase();
+}
 function legacySchool_(){return PropertiesService.getScriptProperties().getProperty('LEGACY_SCHOOL_NAME')||LEGACY_SCHOOL_;}
 function doGet(e) {
   if(e && e.parameter && e.parameter.bridge==='1')return bridgeOutput_(e.parameter);
